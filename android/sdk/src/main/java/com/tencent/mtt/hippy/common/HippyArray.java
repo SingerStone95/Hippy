@@ -21,11 +21,7 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.Iterator;
 
-/**
- * FileName: HippyArray
- * Description：
- * History：
- */
+@Deprecated
 public class HippyArray
 {
 

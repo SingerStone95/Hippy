@@ -26,9 +26,7 @@ import java.util.Set;
 import com.tencent.mtt.hippy.common.HippyArray;
 import com.tencent.mtt.hippy.common.HippyMap;
 
-/**
- * Created by ceasoncai on 2018/8/9.
- */
+@Deprecated
 public class HippyBuffer
 {
 	private static final String		TAG							= "HippyBuffer";
