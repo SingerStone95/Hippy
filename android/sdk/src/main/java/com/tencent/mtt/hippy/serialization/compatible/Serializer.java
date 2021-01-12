@@ -18,7 +18,9 @@ import com.tencent.mtt.hippy.common.HippyArray;
 import com.tencent.mtt.hippy.common.HippyMap;
 import com.tencent.mtt.hippy.serialization.PrimitiveValueSerializer;
 import com.tencent.mtt.hippy.serialization.SerializationTag;
+import com.tencent.mtt.hippy.serialization.memory.buffer.Allocator;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -32,8 +34,8 @@ public class Serializer extends PrimitiveValueSerializer {
   /** Maps a transferred object to its transfer ID. */
   private final Map<Object, Integer> transferMap = new IdentityHashMap<>();
 
-  public Serializer() {
-    super();
+  public Serializer(Allocator<ByteBuffer> allocator) {
+    super(allocator);
   }
 
   @Override

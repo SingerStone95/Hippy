@@ -13,7 +13,11 @@ import com.tencent.mtt.hippy.runtime.builtins.objects.JSPrimitiveWrapper;
 
 import java.util.Map;
 
-public class ValueConverter {
+public final class ValueConverter {
+  private ValueConverter() {
+
+  }
+
   static public Object toHippyValue(Object value) {
     if (JSValue.is(value)) {
       JSValue jsValue = (JSValue) value;

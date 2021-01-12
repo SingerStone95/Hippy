@@ -16,6 +16,9 @@ package com.tencent.mtt.hippy.serialization;
 
 import com.tencent.mtt.hippy.exception.OutOfJavaArrayMaxSizeException;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
+import com.tencent.mtt.hippy.serialization.memory.string.DirectStringTable;
+import com.tencent.mtt.hippy.serialization.memory.string.StringTable;
+import com.tencent.mtt.hippy.serialization.utils.RegExpConverter;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -30,6 +33,8 @@ import java.util.regex.Pattern;
  * Implementation of {@code v8::(internal::)ValueDeserializer}.
  */
 public abstract class PrimitiveValueDeserializer extends V8Serialization {
+  /** StingTable used for byte[] to String */
+  private final StringTable stringTable;
   /** Buffer used for serialization. */
   protected final ByteBuffer buffer;
   /** Version of the data format used during serialization. */
@@ -39,9 +44,18 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   /** Maps ID of a deserialized object to the object itself. */
   private final Map<Integer, Object> objectMap = new HashMap<>();
 
-  protected PrimitiveValueDeserializer(ByteBuffer buffer) {
+  protected PrimitiveValueDeserializer(ByteBuffer buffer, StringTable stringTable) {
     super();
+
+    if (buffer == null) {
+      throw new NullPointerException();
+    }
     this.buffer = buffer.order(ByteOrder.nativeOrder());
+
+    if (stringTable == null) {
+      stringTable = new DirectStringTable();
+    }
+    this.stringTable = stringTable;
   }
 
   public void readHeader() {
@@ -54,11 +68,15 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   }
 
   public Object readValue() {
-    SerializationTag tag = readTag();
-    return readValue(tag);
+    return readValue(StringLocation.TOP_LEVEL, null);
   }
 
-  protected Object readValue(SerializationTag tag) {
+  protected Object readValue(StringLocation location, Object relatedKey) {
+    SerializationTag tag = readTag();
+    return readValue(tag, location, relatedKey);
+  }
+
+  protected Object readValue(SerializationTag tag, StringLocation location, Object relatedKey) {
     switch (tag) {
       case TRUE:
         return Boolean.TRUE;
@@ -79,11 +97,11 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
       case BIG_INT:
         return readBigInt();
       case ONE_BYTE_STRING:
-        return readOneByteString();
+        return readOneByteString(location, relatedKey);
       case TWO_BYTE_STRING:
-        return readTwoByteString();
+        return readTwoByteString(location, relatedKey);
       case UTF8_STRING:
-        return readUTF8String();
+        return readUTF8String(location, relatedKey);
       case DATE:
         return readDate();
       case TRUE_OBJECT:
@@ -95,7 +113,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
       case BIG_INT_OBJECT:
         return readJSBigInt();
       case STRING_OBJECT:
-        return readJSString();
+        return readJSString(location, relatedKey);
       case REGEXP:
         return readJSRegExp();
       case ARRAY_BUFFER:
@@ -171,15 +189,15 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     return buffer.getDouble();
   }
 
-  protected String readString() {
+  protected String readString(StringLocation location, Object relatedKey) {
     SerializationTag tag = readTag();
     switch (tag) {
       case ONE_BYTE_STRING:
-        return readOneByteString();
+        return readOneByteString(location, relatedKey);
       case TWO_BYTE_STRING:
-        return readTwoByteString();
+        return readTwoByteString(location, relatedKey);
       case UTF8_STRING:
-        return readUTF8String();
+        return readUTF8String(location, relatedKey);
       default:
         throw new UnreachableCodeException();
     }
@@ -205,7 +223,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     return bigInteger;
   }
 
-  protected String readOneByteString() {
+  protected String readOneByteString(StringLocation location, Object relatedKey) {
     int charCount = readVarInt();
     if (charCount < 0) {
       throw new OutOfJavaArrayMaxSizeException(charCount);
@@ -215,18 +233,18 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
       byte b = buffer.get();
       chars[i] = (char) (b & 0xff);
     }
-    return new String(chars);
+    return stringTable.lookup(chars, location, relatedKey);
   }
 
-  protected String readTwoByteString() {
-    return readString(NATIVE_UTF16_ENCODING);
+  protected String readTwoByteString(StringLocation location, Object relatedKey) {
+    return readString(NATIVE_UTF16_ENCODING, location, relatedKey);
   }
 
-  protected String readUTF8String() {
-    return readString("UTF-8");
+  protected String readUTF8String(StringLocation location, Object relatedKey) {
+    return readString("UTF-8", location, relatedKey);
   }
 
-  protected String readString(String encoding) {
+  protected String readString(String encoding, StringLocation location, Object relatedKey) {
     int byteCount = readVarInt();
     if (byteCount < 0) {
       throw new OutOfJavaArrayMaxSizeException(byteCount);
@@ -234,7 +252,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     byte[] bytes = new byte[byteCount];
     buffer.get(bytes);
     try {
-      return new String(bytes, encoding);
+      return stringTable.lookup(bytes, encoding, location, relatedKey);
     } catch (UnsupportedEncodingException e) {
       throw new UnreachableCodeException(e);
     }
@@ -242,13 +260,13 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
 
   protected Date readDate() {
     double millis = readDouble();
-    return assignId(new Date((long) millis)); // TODO：丢失精度？
+    return assignId(new Date((long) millis));
   }
 
   protected Pattern readJSRegExp() {
-    String pattern = readString();
+    String pattern = readString(StringLocation.REGEXP, null);
     int flags = readVarInt();
-    return assignId(Pattern.compile(pattern, flags)); // TODO: flags 是否一致？
+    return assignId(Pattern.compile(pattern, RegExpConverter.jsFlagsToPattern(flags)));
   }
 
   protected Object readObjectReference() {
@@ -263,7 +281,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   protected abstract Object readJSBoolean(boolean value);
   protected abstract Object readJSNumber();
   protected abstract Object readJSBigInt();
-  protected abstract Object readJSString();
+  protected abstract Object readJSString(StringLocation location, Object relatedKey);
   protected abstract Object readJSArrayBuffer();
   protected abstract Object readJSObject();
   protected abstract Object readJSMap();

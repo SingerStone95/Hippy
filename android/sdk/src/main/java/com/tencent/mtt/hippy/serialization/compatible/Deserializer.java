@@ -17,9 +17,12 @@ package com.tencent.mtt.hippy.serialization.compatible;
 import com.tencent.mtt.hippy.common.HippyArray;
 import com.tencent.mtt.hippy.common.HippyMap;
 import com.tencent.mtt.hippy.exception.UnexpectedException;
+import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.serialization.ErrorTag;
 import com.tencent.mtt.hippy.serialization.PrimitiveValueDeserializer;
 import com.tencent.mtt.hippy.serialization.SerializationTag;
+import com.tencent.mtt.hippy.serialization.StringLocation;
+import com.tencent.mtt.hippy.serialization.memory.string.StringTable;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -29,8 +32,8 @@ import java.nio.ByteBuffer;
  */
 @SuppressWarnings("deprecation")
 public class Deserializer extends PrimitiveValueDeserializer {
-  public Deserializer(ByteBuffer buffer) {
-    super(buffer);
+  public Deserializer(ByteBuffer buffer, StringTable stringTable) {
+    super(buffer, stringTable);
   }
 
   @Override
@@ -64,8 +67,8 @@ public class Deserializer extends PrimitiveValueDeserializer {
   }
 
   @Override
-  protected String readJSString() {
-    return assignId(readString());
+  protected String readJSString(StringLocation location, Object relatedKey) {
+    return assignId(readString(location, relatedKey));
   }
 
   @Override
@@ -73,7 +76,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
     int byteLength = readVarInt();
     buffer.position(buffer.position() + byteLength);
 
-    assignId(null);
+    assignId(Undefined);
     if (peekTag() == SerializationTag.ARRAY_BUFFER_VIEW) {
       readJSArrayBufferView();
     }
@@ -85,7 +88,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
   protected HippyMap readJSObject() {
     HippyMap object = new HippyMap();
     assignId(object);
-    int read = readJSObjectProperties(object, SerializationTag.END_JS_OBJECT);
+    int read = readJSProperties(object, SerializationTag.END_JS_OBJECT);
     int expected = readVarInt();
     if (read != expected) {
       throw new UnexpectedException("unexpected number of properties");
@@ -93,18 +96,34 @@ public class Deserializer extends PrimitiveValueDeserializer {
     return object;
   }
 
-  private int readJSObjectProperties(HippyMap object, SerializationTag endTag) {
+  private int readJSProperties(HippyMap object, SerializationTag endTag) {
+    final StringLocation keyLocation, valueLocation;
+    if (endTag == SerializationTag.END_SPARSE_JS_ARRAY) {
+      keyLocation = StringLocation.SPARSE_ARRAY_KEY;
+      valueLocation = StringLocation.SPARSE_ARRAY_ITEM;
+    } else if (endTag == SerializationTag.END_DENSE_JS_ARRAY) {
+      keyLocation = StringLocation.DENSE_ARRAY_KEY;
+      valueLocation = StringLocation.DENSE_ARRAY_ITEM;
+    } else if (endTag == SerializationTag.END_JS_OBJECT) {
+      keyLocation = StringLocation.OBJECT_KEY;
+      valueLocation = StringLocation.OBJECT_VALUE;
+    } else {
+      throw new UnreachableCodeException();
+    }
+
     SerializationTag tag;
     int count = 0;
     while ((tag = readTag()) != endTag) {
       count++;
-      Object key = readValue(tag);
-      if (!(key instanceof String)) {
-        throw new AssertionError("Object key is not of String type");
-      }
-      Object value = readValue();
-      if (object != null) {
+      Object key = readValue(tag, keyLocation, null);
+      if (key instanceof Integer) {
+        Object value = readValue(valueLocation, key);
+        object.pushObject(String.valueOf(key), value);
+      } else if (key instanceof String) {
+        Object value = readValue(valueLocation, key);
         object.pushObject((String) key, value);
+      } else {
+        throw new AssertionError("Object key is not of String nor Integer type");
       }
     }
     return count;
@@ -118,9 +137,10 @@ public class Deserializer extends PrimitiveValueDeserializer {
     int read = 0;
     while ((tag = readTag()) != SerializationTag.END_JS_MAP) {
       read++;
-      Object key = readValue(tag);
-      Object value = readValue();
-      object.pushObject(key.toString(), value);
+      Object key = readValue(tag, StringLocation.MAP_KEY, null);
+      key = key.toString();
+      Object value = readValue(StringLocation.MAP_VALUE, key);
+      object.pushObject((String) key, value);
     }
     int expected = readVarInt();
     if (2 * read != expected) {
@@ -137,7 +157,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
     int read = 0;
     while ((tag = readTag()) != SerializationTag.END_JS_SET) {
       read++;
-      Object value = readValue(tag);
+      Object value = readValue(tag, StringLocation.SET_ITEM, null);
       array.pushObject(value);
     }
     int expected = readVarInt();
@@ -155,11 +175,11 @@ public class Deserializer extends PrimitiveValueDeserializer {
     for (int i = 0; i < length; i++) {
       SerializationTag tag = readTag();
       if (tag != SerializationTag.THE_HOLE) {
-        array.pushObject(readValue(tag));
+        array.pushObject(readValue(tag, StringLocation.DENSE_ARRAY_ITEM, i));
       }
     }
 
-    int read = readJSObjectProperties(null, SerializationTag.END_DENSE_JS_ARRAY);
+    int read = readJSProperties(null, SerializationTag.END_DENSE_JS_ARRAY);
     int expected = readVarInt();
     if (read != expected) {
       throw new UnexpectedException("unexpected number of properties");
@@ -176,7 +196,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
     long length = readVarLong();
     HippyMap array = new HippyMap();
     assignId(array);
-    int read = readJSObjectProperties(array, SerializationTag.END_SPARSE_JS_ARRAY);
+    int read = readJSProperties(array, SerializationTag.END_SPARSE_JS_ARRAY);
     int expected = readVarInt();
     if (read != expected) {
       throw new UnexpectedException("unexpected number of properties");
@@ -197,7 +217,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
     readVarInt();
     readArrayBufferViewTag();
 
-    assignId(null);
+    assignId(Undefined);
   }
 
   @Override
@@ -231,10 +251,10 @@ public class Deserializer extends PrimitiveValueDeserializer {
           errorType = "URIError";
           break;
         case MESSAGE:
-          message = readString();
+          message = readString(StringLocation.ERROR_MESSAGE, null);
           break;
         case STACK:
-          stack = readString();
+          stack = readString(StringLocation.ERROR_STACK, null);
           break;
         default:
           if (!(tag == ErrorTag.END)) {
@@ -255,13 +275,13 @@ public class Deserializer extends PrimitiveValueDeserializer {
 
   @Override
   protected Object readHostObject() {
-    return assignId(null);
+    return assignId(Undefined);
   }
 
   @Override
   public Object readTransferredJSArrayBuffer() {
     readVarInt();
-    assignId(null);
+    assignId(Undefined);
     if (peekTag() == SerializationTag.ARRAY_BUFFER_VIEW) {
       readJSArrayBufferView();
     }
@@ -271,7 +291,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
   @Override
   public Object readSharedArrayBuffer() {
     readVarInt();
-    assignId(null);
+    assignId(Undefined);
     if (peekTag() == SerializationTag.ARRAY_BUFFER_VIEW) {
       readJSArrayBufferView();
     }

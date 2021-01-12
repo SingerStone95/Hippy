@@ -15,11 +15,14 @@
 package com.tencent.mtt.hippy.serialization;
 
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
+import com.tencent.mtt.hippy.serialization.memory.buffer.Allocator;
+import com.tencent.mtt.hippy.serialization.memory.buffer.SimpleAllocator;
+import com.tencent.mtt.hippy.serialization.utils.IntegerPolyfill;
+import com.tencent.mtt.hippy.serialization.utils.RegExpConverter;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -29,35 +32,48 @@ import java.util.regex.Pattern;
  * Implementation of {@code v8::(internal::)ValueSerializer}.
  */
 public abstract class PrimitiveValueSerializer extends V8Serialization {
+  /** This serializer should not be used once the buffer is released */
+  private boolean isReleased = false;
+  /** Allocator used for Buffer. */
+  private final Allocator<ByteBuffer> allocator;
   /** Buffer used for serialization. */
-  protected ByteBuffer buffer = allocateBuffer(1024);
+  protected ByteBuffer buffer;
   /** ID of the next serialized object. **/
   private int nextId;
   /** Maps a serialized object to its ID. */
   private final Map<Object, Integer> objectMap = new IdentityHashMap<>();
 
-  protected PrimitiveValueSerializer() {
+  protected PrimitiveValueSerializer(Allocator<ByteBuffer> allocator) {
     super();
-  }
 
-  protected static ByteBuffer allocateBuffer(int capacity) {
-    return ByteBuffer.allocateDirect(capacity).order(ByteOrder.nativeOrder());
+    if (allocator == null) {
+      allocator = new SimpleAllocator();
+    }
+    this.allocator = allocator;
+
+    buffer = this.allocator.allocate(1024);
   }
 
   protected void ensureFreeSpace(int spaceNeeded) {
-    ByteBuffer oldBuffer = buffer;
-    int capacity = oldBuffer.capacity();
-    int capacityNeeded = oldBuffer.position() + spaceNeeded;
+    int capacity = buffer.capacity();
+    int capacityNeeded = buffer.position() + spaceNeeded;
     if (capacityNeeded > capacity) {
-      int newCapacity = Math.max(capacityNeeded, 2 * capacity);
-      ByteBuffer newBuffer = allocateBuffer(newCapacity);
-      oldBuffer.flip();
-      newBuffer.put(oldBuffer);
-      buffer = newBuffer;
+      buffer = this.allocator.expand(buffer, capacityNeeded);
     }
   }
 
+  protected void ensureNotReleased() {
+    if (isReleased) {
+      throw new IllegalStateException("Already released");
+    }
+  }
+
+  private void setReleased() {
+    isReleased = true;
+  }
+
   public void writeHeader() {
+    ensureNotReleased();
     ensureFreeSpace(2);
     buffer.put(VERSION);
     buffer.put(LATEST_VERSION);
@@ -81,6 +97,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   }
 
   public void writeValue(Object value) {
+    ensureNotReleased();
     if (value == Boolean.TRUE) {
       writeTag(SerializationTag.TRUE);
     } else if (value == Boolean.FALSE) {
@@ -136,6 +153,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   }
 
   public void writeVarInt(long value) {
+    ensureNotReleased();
     long rest = value;
     byte[] bytes = new byte[10];
     int idx = 0;
@@ -156,6 +174,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   }
 
   public void writeBytes(ByteBuffer bytes) {
+    ensureNotReleased();
     ensureFreeSpace(bytes.remaining());
     buffer.put(bytes);
   }
@@ -165,6 +184,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   }
 
   public void writeIntOrDouble(double value) {
+    ensureNotReleased();
     if (doubleIsInt(value)) {
       writeInt((int) value);
     } else {
@@ -174,6 +194,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   }
 
   public void writeDouble(double value) {
+    ensureNotReleased();
     ensureFreeSpace(8);
     buffer.putDouble(value);
   }
@@ -239,7 +260,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     int flags = value.flags();
     writeTag(SerializationTag.REGEXP);
     writeString(pattern);
-    writeVarInt(flags);
+    writeVarInt(RegExpConverter.patternFlagsToJS(flags));
   }
 
   protected void writeDate(Date date) {
@@ -247,10 +268,34 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   }
 
   public int size() {
+    ensureNotReleased();
     return buffer.position();
   }
 
+  private void release() {
+    ensureNotReleased();
+    setReleased();
+    allocator.release(buffer);
+  }
+
+  /**
+   * <strong>
+   * After the return value is consumed, other methods on this can be called. <br/>
+   * </strong>
+   * If you want to call the other method in parallel, Use {@link #release(ByteBuffer)} method instead. <br/>
+   * If Use {@link com.tencent.mtt.hippy.serialization.memory.buffer.ThreadLocalAllocator ThreadLocalAllocator}
+   * as {@link #allocator}, before return value is consumed, DO NOT create a new instance in the same thread.
+   */
+  public ByteBuffer releaseUnsafe() {
+    release();
+    ByteBuffer readOnlyBuffer = buffer.asReadOnlyBuffer();
+    readOnlyBuffer.limit(size());
+    readOnlyBuffer.position(0);
+    return readOnlyBuffer;
+  }
+
   public void release(ByteBuffer targetBuffer) {
+    release();
     buffer.flip();
     targetBuffer.put(buffer);
   }

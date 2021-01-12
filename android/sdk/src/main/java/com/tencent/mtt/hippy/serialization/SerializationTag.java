@@ -74,5 +74,4 @@ public enum SerializationTag {
     }
     return null;
   }
-
 }
