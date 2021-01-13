@@ -230,6 +230,9 @@ public class InternalizedStringTable extends DirectStringTable {
         }
         throw new UnreachableCodeException();
       }
+      case VOID: {
+        return "";
+      }
       default: {
         throw new UnreachableCodeException();
       }

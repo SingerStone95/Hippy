@@ -18,7 +18,6 @@ import com.tencent.mtt.hippy.exception.OutOfJavaArrayMaxSizeException;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.serialization.memory.string.DirectStringTable;
 import com.tencent.mtt.hippy.serialization.memory.string.StringTable;
-import com.tencent.mtt.hippy.serialization.utils.RegExpConverter;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -27,7 +26,6 @@ import java.nio.ByteOrder;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Implementation of {@code v8::(internal::)ValueDeserializer}.
@@ -263,12 +261,6 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     return assignId(new Date((long) millis));
   }
 
-  protected Pattern readJSRegExp() {
-    String pattern = readString(StringLocation.REGEXP, null);
-    int flags = readVarInt();
-    return assignId(Pattern.compile(pattern, RegExpConverter.jsFlagsToPattern(flags)));
-  }
-
   protected Object readObjectReference() {
     int id = readVarInt();
     Object object = objectMap.get(id);
@@ -283,6 +275,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   protected abstract Object readJSBigInt();
   protected abstract Object readJSString(StringLocation location, Object relatedKey);
   protected abstract Object readJSArrayBuffer();
+  protected abstract Object readJSRegExp();
   protected abstract Object readJSObject();
   protected abstract Object readJSMap();
   protected abstract Object readJSSet();

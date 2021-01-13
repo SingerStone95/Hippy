@@ -66,5 +66,10 @@ public enum StringLocation {
   /**
    * String for compiles the given regular expression into a {@link java.util.regex.Pattern}
    */
-  REGEXP
+  REGEXP,
+
+  /**
+   * String is not used in anywhere
+   */
+  VOID
 }

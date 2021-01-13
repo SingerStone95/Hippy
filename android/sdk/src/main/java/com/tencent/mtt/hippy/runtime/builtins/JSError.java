@@ -81,7 +81,9 @@ public class JSError extends JSObject {
   @Override
   public JSError clone() throws CloneNotSupportedException {
     JSError clonedObject = (JSError) super.clone();
-    clonedObject.stack = stack.clone();
+    if (clonedObject.stack != null) {
+      clonedObject.stack = stack.clone();
+    }
     return clonedObject;
   }
 }

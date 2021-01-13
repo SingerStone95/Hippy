@@ -18,6 +18,7 @@ import android.util.Pair;
 
 import com.tencent.mtt.hippy.NativeAccess;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
+import com.tencent.mtt.hippy.runtime.builtins.JSRegExp;
 import com.tencent.mtt.hippy.runtime.builtins.JSValue;
 import com.tencent.mtt.hippy.runtime.builtins.array.JSAbstractArray;
 import com.tencent.mtt.hippy.runtime.builtins.array.JSSparseArray;
@@ -45,6 +46,7 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Implementation of {@code v8::(internal::)ValueSerializer}.
@@ -106,6 +108,8 @@ public class Serializer extends PrimitiveValueSerializer {
         writeJSArrayBufferView((JSDataView<?>) value);
       } else if (value.isError()) {
         writeJSError((JSError) value);
+      } else if (value.isRegExp()) {
+        writeJSRegExp((JSRegExp) value);
       } else if (value.isObject()) {
         writeJSObject((JSObject) value);
       } else if (value.isMap()) {
@@ -149,6 +153,12 @@ public class Serializer extends PrimitiveValueSerializer {
   private void writeJSString(JSStringObject value) {
     writeTag(SerializationTag.STRING_OBJECT);
     writeString(value.getValue().toString());
+  }
+
+  private void writeJSRegExp(JSRegExp value) {
+    writeTag(SerializationTag.REGEXP);
+    writeString(value.getSource());
+    writeVarInt(value.getFlags());
   }
 
   private void writeJSArrayBuffer(JSArrayBuffer value) {

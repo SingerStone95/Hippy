@@ -19,6 +19,7 @@ import com.tencent.mtt.hippy.exception.OutOfJavaArrayMaxSizeException;
 import com.tencent.mtt.hippy.exception.OutOfJavaIntegerMaxValueException;
 import com.tencent.mtt.hippy.exception.UnexpectedException;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
+import com.tencent.mtt.hippy.runtime.builtins.JSRegExp;
 import com.tencent.mtt.hippy.runtime.builtins.array.JSSparseArray;
 import com.tencent.mtt.hippy.serialization.ErrorTag;
 import com.tencent.mtt.hippy.serialization.PrimitiveValueDeserializer;
@@ -44,6 +45,7 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Implementation of {@code v8::(internal::)ValueDeserializer}.
@@ -110,6 +112,13 @@ public class Deserializer extends PrimitiveValueDeserializer {
     }
     assignId(arrayBufferObject);
     return (peekTag() == SerializationTag.ARRAY_BUFFER_VIEW) ? readJSArrayBufferView(arrayBufferObject) : arrayBuffer;
+  }
+
+  @Override
+  protected JSRegExp readJSRegExp() {
+    String pattern = readString(StringLocation.REGEXP, null);
+    int flags = readVarInt();
+    return assignId(new JSRegExp(pattern, flags));
   }
 
   @Override

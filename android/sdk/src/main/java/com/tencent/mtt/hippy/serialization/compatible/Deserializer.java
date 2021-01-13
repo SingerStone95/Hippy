@@ -85,6 +85,13 @@ public class Deserializer extends PrimitiveValueDeserializer {
   }
 
   @Override
+  protected Object readJSRegExp() {
+    readString(StringLocation.VOID, null);
+    readVarInt();
+    return assignId(Undefined);
+  }
+
+  @Override
   protected HippyMap readJSObject() {
     HippyMap object = new HippyMap();
     assignId(object);

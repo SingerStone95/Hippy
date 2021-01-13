@@ -18,7 +18,6 @@ import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.serialization.memory.buffer.Allocator;
 import com.tencent.mtt.hippy.serialization.memory.buffer.SimpleAllocator;
 import com.tencent.mtt.hippy.serialization.utils.IntegerPolyfill;
-import com.tencent.mtt.hippy.serialization.utils.RegExpConverter;
 
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -137,8 +136,6 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     if (object instanceof Date) {
       writeTag(SerializationTag.DATE);
       writeDate((Date) object);
-    } else if (object instanceof Pattern) {
-      writeJSRegExp((Pattern) object);
     } else {
       writeCustomObjectValue(object);
     }
@@ -253,14 +250,6 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
       }
       writeByte(b);
     }
-  }
-
-  protected void writeJSRegExp(Pattern value) {
-    String pattern = value.pattern();
-    int flags = value.flags();
-    writeTag(SerializationTag.REGEXP);
-    writeString(pattern);
-    writeVarInt(RegExpConverter.patternFlagsToJS(flags));
   }
 
   protected void writeDate(Date date) {

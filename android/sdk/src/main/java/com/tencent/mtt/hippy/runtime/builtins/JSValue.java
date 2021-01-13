@@ -55,6 +55,10 @@ public abstract class JSValue implements Cloneable, JSONDump {
     return this instanceof JSError;
   }
 
+  public boolean isRegExp() {
+    return this instanceof JSRegExp;
+  }
+
   public boolean isMap() {
     return this instanceof JSMap;
   }
