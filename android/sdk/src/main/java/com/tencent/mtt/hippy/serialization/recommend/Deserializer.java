@@ -56,6 +56,10 @@ public class Deserializer extends PrimitiveValueDeserializer {
   /** Maps transfer ID to the transferred object. */
   private final Map<Integer, Object> transferMap = new HashMap<>();
 
+  public Deserializer(ByteBuffer buffer, long delegate) {
+    this(buffer, null, delegate);
+  }
+
   public Deserializer(ByteBuffer buffer, StringTable stringTable, long delegate) {
     super(buffer, stringTable);
     this.delegate = delegate;

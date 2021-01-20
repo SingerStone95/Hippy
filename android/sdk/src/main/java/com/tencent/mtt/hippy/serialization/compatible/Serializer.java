@@ -34,6 +34,10 @@ public class Serializer extends PrimitiveValueSerializer {
   /** Maps a transferred object to its transfer ID. */
   private final Map<Object, Integer> transferMap = new IdentityHashMap<>();
 
+  public Serializer() {
+    super(null);
+  }
+
   public Serializer(Allocator<ByteBuffer> allocator) {
     super(allocator);
   }

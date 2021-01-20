@@ -2,11 +2,15 @@ package com.tencent.mtt.hippy.serialization.memory.buffer;
 
 import java.nio.ByteBuffer;
 
-public class ThreadLocalAllocator extends SimpleAllocator {
+public class ReusableAllocator extends SimpleAllocator {
   private ByteBuffer reusedBuffer;
   private int maxCacheSize = 16 * 1024; // 16k
 
-  public ThreadLocalAllocator(int maxCacheSize) {
+  public ReusableAllocator() {
+
+  }
+
+  public ReusableAllocator(int maxCacheSize) {
     this.maxCacheSize = maxCacheSize;
   }
 

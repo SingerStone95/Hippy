@@ -86,7 +86,7 @@ std::shared_ptr<CtxValue> V8Ctx::CreateNull() {
   return std::make_shared<V8CtxValue>(isolate_, v8Null);
 }
 
-v8::Handle<v8::Value> V8Ctx::ParseJson(const char *json) {
+v8::Handle<v8::Value> V8Ctx::ParseJson(const char *json, int length) {
   v8::HandleScope handle_scope(isolate_);
   v8::Handle<v8::Context> context = context_persistent_.Get(isolate_);
   v8::Context::Scope context_scope(context);
@@ -100,19 +100,19 @@ v8::Handle<v8::Value> V8Ctx::ParseJson(const char *json) {
           v8::String::NewFromUtf8(isolate_, "parse", v8::NewStringType::kNormal)
               .FromMaybe(v8::Local<v8::String>()));
   v8::Handle<v8::String> v8_str =
-      v8::String::NewFromUtf8(isolate_, json, v8::NewStringType::kNormal)
+      v8::String::NewFromUtf8(isolate_, json, v8::NewStringType::kNormal, length)
           .FromMaybe(v8::Local<v8::String>());
   v8::Handle<v8::Value> argv[1] = {v8_str};
   return v8::Handle<v8::Function>::Cast(json_parse_func)
       ->Call(json_cls, 1, argv);
 }
 
-std::shared_ptr<CtxValue> V8Ctx::CreateObject(const char *json) {
+std::shared_ptr<CtxValue> V8Ctx::CreateObject(const char *json, int length) {
   if (!json) {
     return nullptr;
   }
 
-  v8::Handle<v8::Value> object = ParseJson(json);
+  v8::Handle<v8::Value> object = ParseJson(json, length);
   if (object.IsEmpty()) {
     return nullptr;
   }

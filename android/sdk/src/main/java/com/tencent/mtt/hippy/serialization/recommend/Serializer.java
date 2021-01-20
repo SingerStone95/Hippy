@@ -59,6 +59,10 @@ public class Serializer extends PrimitiveValueSerializer {
   /** Determines whether {@code ArrayBuffer}s should be serialized as host objects. */
   private boolean treatArrayBufferViewsAsHostObjects;
 
+  public Serializer(long delegate) {
+    this(null, delegate);
+  }
+
   public Serializer(Allocator<ByteBuffer> allocator, long delegate) {
     super(allocator);
     this.delegate = delegate;

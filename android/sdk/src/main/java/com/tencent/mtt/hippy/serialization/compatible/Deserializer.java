@@ -32,6 +32,10 @@ import java.nio.ByteBuffer;
  */
 @SuppressWarnings("deprecation")
 public class Deserializer extends PrimitiveValueDeserializer {
+  public Deserializer(ByteBuffer buffer) {
+    this(buffer, null);
+  }
+
   public Deserializer(ByteBuffer buffer, StringTable stringTable) {
     super(buffer, stringTable);
   }
@@ -123,14 +127,16 @@ public class Deserializer extends PrimitiveValueDeserializer {
     while ((tag = readTag()) != endTag) {
       count++;
       Object key = readValue(tag, keyLocation, null);
-      if (key instanceof Integer) {
-        Object value = readValue(valueLocation, key);
-        object.pushObject(String.valueOf(key), value);
-      } else if (key instanceof String) {
-        Object value = readValue(valueLocation, key);
-        object.pushObject((String) key, value);
-      } else {
-        throw new AssertionError("Object key is not of String nor Integer type");
+      Object value = readValue(valueLocation, key);
+
+      if (value != Undefined) {
+        if (key instanceof Integer) {
+          object.pushObject(String.valueOf(key), value);
+        } else if (key instanceof String) {
+          object.pushObject((String) key, value);
+        } else {
+          throw new AssertionError("Object key is not of String nor Integer type");
+        }
       }
     }
     return count;
@@ -147,7 +153,9 @@ public class Deserializer extends PrimitiveValueDeserializer {
       Object key = readValue(tag, StringLocation.MAP_KEY, null);
       key = key.toString();
       Object value = readValue(StringLocation.MAP_VALUE, key);
-      object.pushObject((String) key, value);
+      if (value != Undefined) {
+        object.pushObject((String) key, value);
+      }
     }
     int expected = readVarInt();
     if (2 * read != expected) {

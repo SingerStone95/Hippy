@@ -253,4 +253,10 @@ public class InternalizedStringTable extends DirectStringTable {
     return lookupString(bytes, encoding, location, relatedKey);
   }
   // endregion
+
+  @Override
+  public void release() {
+    valueCache.evictAll();
+    super.release();
+  }
 }

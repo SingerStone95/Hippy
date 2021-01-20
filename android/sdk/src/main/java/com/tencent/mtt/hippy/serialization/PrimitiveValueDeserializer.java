@@ -56,6 +56,10 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     this.stringTable = stringTable;
   }
 
+  /**
+   * Reads and validates a header (including the format version).
+   * Throw an {@link UnsupportedOperationException} exception on unsupported wire format.
+   */
   public void readHeader() {
     if (buffer.get() == VERSION) {
       version = buffer.get();
@@ -65,6 +69,10 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     }
   }
 
+  /**
+   * Deserializes a JavaScript delegate object from the buffer.
+   * @return JavaScript delegate object
+   */
   public Object readValue() {
     return readValue(StringLocation.TOP_LEVEL, null);
   }
@@ -297,6 +305,11 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     return object;
   }
 
+  /**
+   * Reads the underlying wire format version.
+   * Likely mostly to be useful to legacy code reading old wire format versions.
+   * @return wire format version
+   */
   public int getWireFormatVersion() {
     return version;
   }

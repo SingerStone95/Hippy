@@ -25,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.Date;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Implementation of {@code v8::(internal::)ValueSerializer}.
@@ -71,6 +70,9 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     isReleased = true;
   }
 
+  /**
+   * Writes out a header, which includes the format version.
+   */
   public void writeHeader() {
     ensureNotReleased();
     ensureFreeSpace(2);
@@ -95,6 +97,10 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     buffer.put(b);
   }
 
+  /**
+   * Serializes a JavaScript delegate object into the buffer.
+   * @param value JavaScript delegate object
+   */
   public void writeValue(Object value) {
     ensureNotReleased();
     if (value == Boolean.TRUE) {
@@ -261,32 +267,18 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     return buffer.position();
   }
 
-  private void release() {
+  /**
+   * Returns the serialized data (allocated using the {@link Allocator}).
+   * This serializer should not be used once the buffer is released.
+   * Ownership of the buffer is transferred to the caller.
+   * @return Serialized data
+   */
+  public ByteBuffer release() {
     ensureNotReleased();
     setReleased();
-    allocator.release(buffer);
-  }
-
-  /**
-   * <strong>
-   * After the return value is consumed, other methods on this can be called. <br/>
-   * </strong>
-   * If you want to call the other method in parallel, Use {@link #release(ByteBuffer)} method instead. <br/>
-   * If Use {@link com.tencent.mtt.hippy.serialization.memory.buffer.ThreadLocalAllocator ThreadLocalAllocator}
-   * as {@link #allocator}, before return value is consumed, DO NOT create a new instance in the same thread.
-   */
-  public ByteBuffer releaseUnsafe() {
-    release();
-    ByteBuffer readOnlyBuffer = buffer.asReadOnlyBuffer();
-    readOnlyBuffer.limit(size());
-    readOnlyBuffer.position(0);
-    return readOnlyBuffer;
-  }
-
-  public void release(ByteBuffer targetBuffer) {
-    release();
     buffer.flip();
-    targetBuffer.put(buffer);
+    allocator.release(buffer);
+    return buffer;
   }
 
   protected void assignId(Object object) {

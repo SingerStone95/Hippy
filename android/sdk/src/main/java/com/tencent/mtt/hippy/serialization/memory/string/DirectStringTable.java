@@ -20,4 +20,9 @@ public class DirectStringTable implements StringTable {
     }
     return new String(bytes, encoding);
   }
+
+  @Override
+  public void release() {
+    
+  }
 }
