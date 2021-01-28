@@ -13,9 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.tencent.mtt.hippy.serialization.compatible;
+package com.tencent.mtt.hippy.common;
 
+@Deprecated
 public class ConstantValue {
+  private ConstantValue() {
+
+  }
+
   public final static Object Undefined = new Object();
   public final static Object Null = null;
   public final static Object Hole = Undefined;

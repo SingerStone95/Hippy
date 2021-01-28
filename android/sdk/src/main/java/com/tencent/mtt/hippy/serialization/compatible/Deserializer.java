@@ -15,6 +15,7 @@
  */
 package com.tencent.mtt.hippy.serialization.compatible;
 
+import com.tencent.mtt.hippy.common.ConstantValue;
 import com.tencent.mtt.hippy.common.HippyArray;
 import com.tencent.mtt.hippy.common.HippyMap;
 import com.tencent.mtt.hippy.exception.UnexpectedException;
