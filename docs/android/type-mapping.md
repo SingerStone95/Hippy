@@ -11,40 +11,42 @@ Hippy 在 Java 中提供了两套类型系统：
 
 ## 类型映射关系
 
-| ECMAScript Type Category  | ECMAScript Type   | Recommennd(New) Type in Java       | Compatible(Old) Type in Java           |
-|---------------------------|-------------------|------------------------------------|----------------------------------------|
-| Primitives                | true              | true                               | true                                   |
-|                           | false             | false                              | false                                  |
-|                           | null              | (#1).JSOddball#Null                | null                                   |
-|                           | undefined         | (#1).JSOddball#Undefined           | (#2).ConstantValue#Undefined           |
-|                           | number            | int                                | int                                    |
-|                           |                   | double                             | double                                 |
-|                           | bigint            | java.math.BigInteger               | java.math.BigInteger                   |
-|                           | string            | java.lang.String                   | java.lang.String                       |
-| Primitive wrapper objects | Boolean           | (#1).objects.JSBooleanObject#True  | true                                   |
-|                           |                   | (#1).objects.JSBooleanObject#False | false                                  |
-|                           | Number            | (#1).objects.JSNumberObject        | double                                 |
-|                           | BigInt            | (#1).objects.JSBigintObject        | java.math.BigInteger                   |
-|                           | String            | (#1).objects.JSStringObject        | java.lang.String                       |
-| Fundamental objects       | Object            | (#1).JSObject                      | (#2).HippyMap                          |
-| Indexed collections       | Array(dense)      | (#1).JSDenseArray                  | (#2).HippyArray  (Not fully supported) |
-|                           | Array(sparse)     | (#1).JSSparseArray                 | N/A                                    |
-| Keyed collections         | Map               | (#1).JSMap                         | (#2).HippyMap (Not fully supported)    |
-|                           | Set               | (#1).JSSet                         | (#2).HippyArray (Not fully supported)  |
-| Structured data           | ArrayBuffer       | (#1).JSArrayBuffer                 | N/A                                    |
-|                           | SharedArrayBuffer | (#1).JSSharedArrayBuffer           | N/A                                    |
-|                           | ArrayBufferView   | (#1).JSDataView                    | N/A                                    |
-| Dates                     | Date              | java.util.Date                     | java.util.Date                         |
-| Error objects             | Error             | (#1).JSError                       | N/A                                    |
-|                           | EvalError         |                                    |                                        |
-|                           | RangeError        |                                    |                                        |
-|                           | ReferenceError    |                                    |                                        |
-|                           | SyntaxError       |                                    |                                        |
-|                           | TypeError         |                                    |                                        |
-|                           | URIError          |                                    |                                        |
-| Text processing           | RegExp            | (#1).JSRegExp                      | N/A                                    |
-| Host Object               | \<any\>           | java.lang.Object                   | N/A                                    |
-| Array Holes               | undefined(hole)   | (#1).JSOddball#Hole                | (#2).ConstantValue#Hole                |
+| ECMAScript Type Category  | ECMAScript Type              | Recommennd(New) Type in Java       | Compatible(Old) Type in Java           |
+|---------------------------|------------------------------|------------------------------------|----------------------------------------|
+| Primitives                | true                         | true                               | true                                   |
+|                           | false                        | false                              | false                                  |
+|                           | null                         | (#1).JSOddball#Null                | null                                   |
+|                           | undefined                    | (#1).JSOddball#Undefined           | (#2).ConstantValue#Undefined           |
+|                           | number                       | int                                | int                                    |
+|                           |                              | double                             | double                                 |
+|                           | bigint                       | java.math.BigInteger               | java.math.BigInteger                   |
+|                           | string                       | java.lang.String                   | java.lang.String                       |
+| Primitive wrapper objects | Boolean                      | (#1).objects.JSBooleanObject#True  | true                                   |
+|                           |                              | (#1).objects.JSBooleanObject#False | false                                  |
+|                           | Number                       | (#1).objects.JSNumberObject        | double                                 |
+|                           | BigInt                       | (#1).objects.JSBigintObject        | java.math.BigInteger                   |
+|                           | String                       | (#1).objects.JSStringObject        | java.lang.String                       |
+| Fundamental objects       | Object                       | (#1).JSObject                      | (#2).HippyMap                          |
+| Indexed collections       | Array(dense)                 | (#1).JSDenseArray                  | (#2).HippyArray  (Not fully supported) |
+|                           | Array(sparse)                | (#1).JSSparseArray                 | N/A                                    |
+| Keyed collections         | Map                          | (#1).JSMap                         | (#2).HippyMap (Not fully supported)    |
+|                           | Set                          | (#1).JSSet                         | (#2).HippyArray (Not fully supported)  |
+| Structured data           | ArrayBuffer                  | (#1).JSArrayBuffer                 | N/A                                    |
+|                           | SharedArrayBuffer            | (#1).JSSharedArrayBuffer           | N/A                                    |
+|                           | ArrayBufferView              | (#1).JSDataView                    | N/A                                    |
+| Dates                     | Date                         | java.util.Date                     | java.util.Date                         |
+| Error objects             | Error                        | (#1).JSError                       | N/A                                    |
+|                           | EvalError                    |                                    |                                        |
+|                           | RangeError                   |                                    |                                        |
+|                           | ReferenceError               |                                    |                                        |
+|                           | SyntaxError                  |                                    |                                        |
+|                           | TypeError                    |                                    |                                        |
+|                           | URIError                     |                                    |                                        |
+| Text processing           | RegExp                       | (#1).JSRegExp                      | N/A                                    |
+| Array Holes               | undefined(hole)              | (#1).JSOddball#Hole                | (#2).ConstantValue#Hole                |
+| Host Object               | Object(with internal fields) | java.lang.Object                   | N/A                                    |
+| WebAssembly               | WebAssembly.Module           | (#1).wasm.WasmModule               | N/A                                    |
+|                           | WebAssembly.Memory           | (#1).wasm.WasmMemory               | N/A                                    |
 
 1. com.tencent.mtt.hippy.runtime.builtins
 2. com.tencent.mtt.hippy.common

@@ -314,4 +314,19 @@ public class Deserializer extends PrimitiveValueDeserializer {
     }
     return null;
   }
+
+  @Override
+  protected Object readTransferredWasmModule() {
+    readVarInt();
+    assignId(Undefined);
+    return null;
+  }
+
+  @Override
+  protected Object readTransferredWasmMemory() {
+    readVarInt();
+    readSharedArrayBuffer();
+    assignId(Undefined);
+    return null;
+  }
 }

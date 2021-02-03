@@ -15,13 +15,16 @@
  */
 package com.tencent.mtt.hippy.serialization.recommend;
 
-import com.tencent.mtt.hippy.NativeAccess;
 import com.tencent.mtt.hippy.exception.OutOfJavaArrayMaxSizeException;
 import com.tencent.mtt.hippy.exception.OutOfJavaIntegerMaxValueException;
 import com.tencent.mtt.hippy.exception.UnexpectedException;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.runtime.builtins.JSRegExp;
+import com.tencent.mtt.hippy.runtime.builtins.JSValue;
 import com.tencent.mtt.hippy.runtime.builtins.array.JSSparseArray;
+import com.tencent.mtt.hippy.runtime.builtins.wasm.WasmMemory;
+import com.tencent.mtt.hippy.runtime.builtins.wasm.WasmModule;
+import com.tencent.mtt.hippy.serialization.exception.DataCloneDeserializationException;
 import com.tencent.mtt.hippy.serialization.ErrorTag;
 import com.tencent.mtt.hippy.serialization.PrimitiveValueDeserializer;
 import com.tencent.mtt.hippy.serialization.SerializationTag;
@@ -39,6 +42,7 @@ import com.tencent.mtt.hippy.runtime.builtins.objects.JSBooleanObject;
 import com.tencent.mtt.hippy.runtime.builtins.objects.JSNumberObject;
 import com.tencent.mtt.hippy.runtime.builtins.objects.JSStringObject;
 import com.tencent.mtt.hippy.serialization.StringLocation;
+import com.tencent.mtt.hippy.serialization.exception.DataCloneException;
 import com.tencent.mtt.hippy.serialization.memory.string.StringTable;
 
 import java.math.BigInteger;
@@ -46,22 +50,61 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /**
  * Implementation of {@code v8::(internal::)ValueDeserializer}.
  */
 public class Deserializer extends PrimitiveValueDeserializer {
-  /** Pointer to the corresponding v8::ValueDeserializer. */
-  private final long delegate;
-  /** Maps transfer ID to the transferred object. */
-  private final Map<Integer, Object> transferMap = new HashMap<>();
+  public interface Delegate {
+    /**
+     * Implement this method to read some kind of host object,
+     * if possible. If not,
+     * a {@link DataCloneException} exception should be thrown.
+     *
+     * @param deserializer current deserializer
+     * @return host object
+     */
+    Object readHostObject(Deserializer deserializer);
 
-  public Deserializer(ByteBuffer buffer, long delegate) {
+    /**
+     * Get a {@link JSSharedArrayBuffer} given a clone_id previously provided by
+     * Serializer.Delegate#getSharedArrayBufferId
+     *
+     * @param deserializer current deserializer
+     * @param clone_id clone id
+     * @return JSSharedArrayBuffer
+     */
+    JSSharedArrayBuffer getSharedArrayBufferFromId(Deserializer deserializer, int clone_id);
+
+    /**
+     * Get a {@link WasmModule} given a transfer_id previously provided by
+     * erializer.Delegate#getWasmModuleTransferId
+     *
+     * @param deserializer current deserializer
+     * @param transfer_id transfer id
+     * @return WebAssembly Module
+     */
+    WasmModule getWasmModuleFromId(Deserializer deserializer, int transfer_id);
+  }
+
+  /** Implement for Delegate interface */
+  private final Delegate delegate;
+  /** Maps transfer ID to the transferred {@link JSArrayBuffer}s. */
+  private Map<Integer, Object> arrayBufferTransferMap;
+
+  public Deserializer(ByteBuffer buffer) {
+    this(buffer, null, null);
+  }
+
+  public Deserializer(ByteBuffer buffer, StringTable stringTable) {
+    this(buffer, stringTable, null);
+  }
+
+  public Deserializer(ByteBuffer buffer, Delegate delegate) {
     this(buffer, null, delegate);
   }
 
-  public Deserializer(ByteBuffer buffer, StringTable stringTable, long delegate) {
+  public Deserializer(ByteBuffer buffer, StringTable stringTable, Delegate delegate) {
     super(buffer, stringTable);
     this.delegate = delegate;
   }
@@ -380,17 +423,33 @@ public class Deserializer extends PrimitiveValueDeserializer {
 
   @Override
   protected Object readHostObject() {
-    return assignId(NativeAccess.readHostObject(delegate));
+    if (delegate == null) {
+      throw new DataCloneDeserializationException();
+    }
+    return assignId(delegate.readHostObject(this));
   }
 
-  public void transferArrayBuffer(int id, JSArrayBuffer arrayBuffer) {
-    transferMap.put(id, arrayBuffer);
+  /**
+   * Accepts the {@link JSArrayBuffer} corresponding to the one passed previously to
+   * {@link Serializer#transferArrayBuffer(int, JSArrayBuffer)}
+   *
+   * @param transferId transfer id
+   * @param arrayBuffer JSArrayBuffer
+   */
+  public void transferArrayBuffer(int transferId, JSArrayBuffer arrayBuffer) {
+    if (arrayBufferTransferMap == null) {
+      arrayBufferTransferMap = new HashMap<>();
+    }
+    arrayBufferTransferMap.put(transferId, arrayBuffer);
   }
 
   @Override
-  public Object readTransferredJSArrayBuffer() {
+  protected Object readTransferredJSArrayBuffer() {
     int id = readVarInt();
-    JSArrayBuffer arrayBuffer = (JSArrayBuffer) transferMap.get(id);
+    if (arrayBufferTransferMap == null) {
+      throw new AssertionError("Call |transferArrayBuffer(int, JSArrayBuffer)| first.");
+    }
+    JSArrayBuffer arrayBuffer = (JSArrayBuffer) arrayBufferTransferMap.get(id);
     if (arrayBuffer == null) {
       throw new AssertionError("Invalid transfer id " + id);
     }
@@ -399,10 +458,34 @@ public class Deserializer extends PrimitiveValueDeserializer {
   }
 
   @Override
-  public Object readSharedArrayBuffer() {
+  protected Object readSharedArrayBuffer() {
+    if (delegate == null) {
+      throw new DataCloneDeserializationException();
+    }
     int id = readVarInt();
-    JSSharedArrayBuffer sharedArrayBuffer = (JSSharedArrayBuffer) NativeAccess.getSharedArrayBufferFromId(delegate, id);
+    JSSharedArrayBuffer sharedArrayBuffer = delegate.getSharedArrayBufferFromId(this, id);
     assignId(sharedArrayBuffer);
     return (peekTag() == SerializationTag.ARRAY_BUFFER_VIEW) ? readJSArrayBufferView(sharedArrayBuffer) : sharedArrayBuffer;
+  }
+
+  @Override
+  protected Object readTransferredWasmModule() {
+    if (delegate == null) {
+      throw new DataCloneDeserializationException();
+    }
+    int id = readVarInt();
+    WasmModule wasmModule = delegate.getWasmModuleFromId(this, id);
+    return assignId(wasmModule);
+  }
+
+  @Override
+  protected Object readTransferredWasmMemory() {
+    int maximumPages = readVarInt();
+    JSValue memory = (JSValue) readSharedArrayBuffer();
+    if (!memory.isSharedArrayBuffer()) {
+      throw new UnexpectedException("expected SharedArrayBuffer");
+    }
+    WasmMemory wasmMemory = new WasmMemory(maximumPages, (JSSharedArrayBuffer) memory);
+    return assignId(wasmMemory);
   }
 }

@@ -23,6 +23,8 @@ import com.tencent.mtt.hippy.runtime.builtins.objects.JSBooleanObject;
 import com.tencent.mtt.hippy.runtime.builtins.objects.JSNumberObject;
 import com.tencent.mtt.hippy.runtime.builtins.objects.JSPrimitiveWrapper;
 import com.tencent.mtt.hippy.runtime.builtins.objects.JSStringObject;
+import com.tencent.mtt.hippy.runtime.builtins.wasm.WasmMemory;
+import com.tencent.mtt.hippy.runtime.builtins.wasm.WasmModule;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -120,6 +122,14 @@ public abstract class JSValue implements Cloneable, JSONDump {
 
   public boolean isNumberObject() {
     return this instanceof JSNumberObject;
+  }
+
+  public boolean isWasmModule() {
+    return this instanceof WasmModule;
+  }
+
+  public boolean isWasmMemory() {
+    return this instanceof WasmMemory;
   }
   // endregion
 

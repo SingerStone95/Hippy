@@ -128,7 +128,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
       Integer id = objectMap.get(value);
       if (id != null) {
         writeTag(SerializationTag.OBJECT_REFERENCE);
-        writeVarInt(id);
+        writeVarIntOrLong(id);
       } else {
         beforeWriteObject(value);
         writeObject(value);
@@ -153,10 +153,15 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
   protected void writeInt(int value) {
     writeTag(SerializationTag.INT32);
     int zigzag = (value << 1) ^ (value >> 31);
-    writeVarInt(IntegerPolyfill.toUnsignedLong(zigzag));
+    writeVarIntOrLong(IntegerPolyfill.toUnsignedLong(zigzag));
   }
 
-  public void writeVarInt(long value) {
+  /**
+   * Write {@code int} or {@code long} data to the buffer.
+   *
+   * @param value data
+   */
+  public void writeVarIntOrLong(long value) {
     ensureNotReleased();
     long rest = value;
     byte[] bytes = new byte[10];
@@ -177,9 +182,25 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     buffer.put(bytes, 0, length);
   }
 
-  public void writeBytes(ByteBuffer bytes) {
+  /**
+   * Write raw bytes to the buffer.
+   *
+   * @param bytes source {@link ByteBuffer}
+   */
+  public void writeRawBytes(ByteBuffer bytes) {
     ensureNotReleased();
     ensureFreeSpace(bytes.remaining());
+    buffer.put(bytes);
+  }
+
+  /**
+   * Write raw {@code byte[]} to the buffer.
+   *
+   * @param bytes source
+   */
+  public void writeRawBytes(byte[] bytes) {
+    ensureNotReleased();
+    ensureFreeSpace(bytes.length);
     buffer.put(bytes);
   }
 
@@ -187,6 +208,11 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     return (value == Math.floor(value)) && !Double.isInfinite(value);
   }
 
+  /**
+   * Write {@code int} or {@code double} data to the buffer.
+   *
+   * @param value data
+   */
   public void writeIntOrDouble(double value) {
     ensureNotReleased();
     if (doubleIsInt(value)) {
@@ -197,6 +223,11 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     }
   }
 
+  /**
+   * Write {@code double} data to the buffer.
+   *
+   * @param value data
+   */
   public void writeDouble(double value) {
     ensureNotReleased();
     ensureFreeSpace(8);
@@ -217,7 +248,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
       }
       writeTag(tag);
       bytes = string.getBytes(encoding);
-      writeVarInt(bytes.length);
+      writeVarIntOrLong(bytes.length);
       writeBytes(bytes, bytes.length);
     } catch (UnsupportedEncodingException e) {
       throw new UnreachableCodeException();
@@ -246,7 +277,7 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     if (negative) {
       bitfield++;
     }
-    writeVarInt(bitfield);
+    writeVarIntOrLong(bitfield);
     for (int i = 0; i < bytes; i++) {
       byte b = 0;
       for (int bit = 8 * (i + 1) - 1; bit >= 8 * i; bit--) {
@@ -263,15 +294,11 @@ public abstract class PrimitiveValueSerializer extends V8Serialization {
     writeDouble(date.getTime());
   }
 
-  public int size() {
-    ensureNotReleased();
-    return buffer.position();
-  }
-
   /**
    * Returns the serialized data (allocated using the {@link Allocator}).
    * This serializer should not be used once the buffer is released.
    * Ownership of the buffer is transferred to the caller.
+   *
    * @return Serialized data
    */
   public ByteBuffer release() {

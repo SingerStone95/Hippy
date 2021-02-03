@@ -54,7 +54,9 @@ public enum SerializationTag {
   END_DENSE_JS_ARRAY('$'), // kEndDenseJSArray
   THE_HOLE('-'), // kTheHole
   OBJECT_REFERENCE('^'), // kObjectReference
+  WASM_MODULE_TRANSFER('w'), // kWasmModuleTransfer
   HOST_OBJECT('\\'), // kHostObject
+  WASM_MEMORY_TRANSFER('m'), // kWasmMemoryTransfer
   ERROR('r'); // kError
 
   private final byte tag;

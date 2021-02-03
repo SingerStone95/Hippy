@@ -75,7 +75,7 @@ public class Serializer extends PrimitiveValueSerializer {
     List<String> names = new ArrayList<>(value.keySet());
     writeJSObjectProperties(value, names);
     writeTag(SerializationTag.END_JS_OBJECT);
-    writeVarInt(names.size());
+    writeVarIntOrLong(names.size());
   }
 
   private void writeJSObjectProperties(HippyMap object, List<String> keys) {
@@ -89,12 +89,12 @@ public class Serializer extends PrimitiveValueSerializer {
   private void writeJSArray(HippyArray value) {
     long length = value.size();
     writeTag(SerializationTag.BEGIN_DENSE_JS_ARRAY);
-    writeVarInt(length);
+    writeVarIntOrLong(length);
     for (int i = 0; i < value.size(); i++) {
       writeValue(value.get(i));
     }
     writeTag(SerializationTag.END_DENSE_JS_ARRAY);
-    writeVarInt(0);
-    writeVarInt(length);
+    writeVarIntOrLong(0);
+    writeVarIntOrLong(length);
   }
 }

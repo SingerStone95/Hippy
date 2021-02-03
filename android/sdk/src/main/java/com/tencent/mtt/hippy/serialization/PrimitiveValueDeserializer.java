@@ -141,12 +141,25 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
         return readSparseArray();
       case OBJECT_REFERENCE:
         return readObjectReference();
+      case WASM_MODULE_TRANSFER:
+        return readTransferredWasmModule();
       case HOST_OBJECT:
         return readHostObject();
+      case WASM_MEMORY_TRANSFER:
+        return readTransferredWasmMemory();
       case ERROR:
         return readJSError();
-      default:
-        throw new UnsupportedTagException(tag);
+      default: {
+        //  Before there was an explicit tag for host objects, all unknown tags
+        //  were delegated to the host.
+        if (version < 13) {
+          buffer.position(buffer.position() - 1);
+          return readHostObject();
+        }
+
+        // Unsupported Tag treated as Undefined
+        return Undefined;
+      }
     }
   }
 
@@ -176,10 +189,20 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     return (int) value;
   }
 
+  /**
+   * Reads {@code int} data from the buffer.
+   *
+   * @return data
+   */
   public int readVarInt() {
     return (int) readVarLong();
   }
 
+  /**
+   * Reads {@code long} data from the buffer.
+   *
+   * @return data
+   */
   public long readVarLong() {
     long value = 0;
     int shift = 0;
@@ -192,8 +215,37 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
     return value;
   }
 
+  /**
+   * Reads {@code double} data from the buffer.
+   *
+   * @return data
+   */
   public double readDouble() {
     return buffer.getDouble();
+  }
+
+  /**
+   * Direct reads raw bytes from the buffer without copy.
+   *
+   * @param length read length
+   * @return {@link ByteBuffer}
+   */
+  public ByteBuffer readRawBytesDirect(int length) {
+    ByteBuffer sliced = buffer.slice();
+    sliced.limit(length);
+    return sliced;
+  }
+
+  /**
+   * Reads raw {@code byte[]} from the buffer.
+   *
+   * @param length read length
+   * @return byte[]
+   */
+  public byte[] readRawBytes(int length) {
+    byte[] bytes = new byte[length];
+    buffer.get(bytes);
+    return bytes;
   }
 
   protected String readString(StringLocation location, Object relatedKey) {
@@ -294,12 +346,8 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   protected abstract Object readHostObject();
   protected abstract Object readTransferredJSArrayBuffer();
   protected abstract Object readSharedArrayBuffer();
-
-  public int readBytes(int length) {
-    int position = buffer.position();
-    buffer.position(position + length);
-    return position;
-  }
+  protected abstract Object readTransferredWasmModule();
+  protected abstract Object readTransferredWasmMemory();
 
   protected <T> T assignId(T object) {
     objectMap.put(nextId++, object);
@@ -309,6 +357,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   /**
    * Reads the underlying wire format version.
    * Likely mostly to be useful to legacy code reading old wire format versions.
+   *
    * @return wire format version
    */
   public int getWireFormatVersion() {

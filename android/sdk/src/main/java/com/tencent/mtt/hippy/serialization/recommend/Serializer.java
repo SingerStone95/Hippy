@@ -17,13 +17,14 @@ package com.tencent.mtt.hippy.serialization.recommend;
 
 import android.util.Pair;
 
-import com.tencent.mtt.hippy.NativeAccess;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.runtime.builtins.JSRegExp;
 import com.tencent.mtt.hippy.runtime.builtins.JSValue;
 import com.tencent.mtt.hippy.runtime.builtins.array.JSAbstractArray;
 import com.tencent.mtt.hippy.runtime.builtins.array.JSSparseArray;
+import com.tencent.mtt.hippy.runtime.builtins.wasm.WasmModule;
 import com.tencent.mtt.hippy.serialization.ArrayBufferViewTag;
+import com.tencent.mtt.hippy.serialization.exception.DataCloneException;
 import com.tencent.mtt.hippy.serialization.ErrorTag;
 import com.tencent.mtt.hippy.serialization.utils.IntegerPolyfill;
 import com.tencent.mtt.hippy.serialization.PrimitiveValueSerializer;
@@ -47,31 +48,88 @@ import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Implementation of {@code v8::(internal::)ValueSerializer}.
  */
 public class Serializer extends PrimitiveValueSerializer {
-  /** Pointer to the corresponding v8::ValueSerializer. */
-  private final long delegate;
-  /** Maps a transferred object to its transfer ID. */
-  private final Map<Object, Integer> transferMap = new IdentityHashMap<>();
-  /** Determines whether {@code ArrayBuffer}s should be serialized as host objects. */
+  public interface Delegate {
+    /**
+     * Implement this method to write some kind of host object,
+     * if possible. If not,
+     * a {@link DataCloneException} exception should be thrown.
+     *
+     * @param serializer current serializer
+     * @param object host object
+     */
+    void writeHostObject(Serializer serializer, Object object);
+
+    /**
+     * Called when the Serializer is going to serialize a {@link JSSharedArrayBuffer} object.
+     * Implement must return an ID for the object,
+     * using the same ID if this {@link JSSharedArrayBuffer} has already been serialized in this buffer.
+     * <br/>
+     * When deserializing, this ID will be passed to Deserializer.Delegate#getSharedArrayBufferFromId as |clone_id|.
+     * <br/>
+     * If the object cannot be serialized, an exception {@link DataCloneException} should be thrown.
+     *
+     * @param serializer current serializer
+     * @param sharedArrayBuffer SharedArrayBuffer
+     * @return ID
+     */
+    int getSharedArrayBufferId(Serializer serializer, JSSharedArrayBuffer sharedArrayBuffer);
+
+    /**
+     * Called when the Serializer is going to serialize a {@link WasmModule} object.
+     * Implement must return an ID for the object,
+     * using the same ID if this {@link WasmModule} has already been serialized in this buffer.
+     * <br/>
+     * When deserializing, this ID will be passed to Deserializer.Delegate#getWasmModuleFromId as |transfer_id|.
+     * <br/>
+     * If the object cannot be serialized, an exception {@link DataCloneException} should be thrown.
+     *
+     * @param serializer current serializer
+     * @param module WebAssembly Module
+     * @return ID
+     */
+    int getWasmModuleTransferId(Serializer serializer, WasmModule module);
+  }
+
+  /** Implement for Delegate interface */
+  private final Delegate delegate;
+  /** Maps a transferred {@link JSArrayBuffer} to its transfer ID. */
+  private Map<JSArrayBuffer, Integer> arrayBufferTransferMap;
+  /** Determines whether {@link JSArrayBuffer}s should be serialized as host objects. */
   private boolean treatArrayBufferViewsAsHostObjects;
 
-  public Serializer(long delegate) {
+  public Serializer() {
+    this(null, null);
+  }
+
+  public Serializer(Delegate delegate) {
     this(null, delegate);
   }
 
-  public Serializer(Allocator<ByteBuffer> allocator, long delegate) {
+  public Serializer(Allocator<ByteBuffer> allocator) {
+    this(allocator, null);
+  }
+
+  public Serializer(Allocator<ByteBuffer> allocator, Delegate delegate) {
     super(allocator);
     this.delegate = delegate;
   }
 
-  public void setTreatArrayBufferViewsAsHostObjects(boolean treatArrayBufferViewsAsHostObjects) {
+  /**
+   * Indicate whether to treat {@link JSDataView} objects as host objects,
+   * i.e. pass them to Delegate#WriteHostObject. This should not be called when no Delegate was passed.
+   * <br/>
+   * The default is not to treat ArrayBufferViews as host objects.
+   *
+   * @param mode treat mode
+   */
+  public void setTreatArrayBufferViewsAsHostObjects(boolean mode) {
     ensureNotReleased();
-    this.treatArrayBufferViewsAsHostObjects = treatArrayBufferViewsAsHostObjects;
+    treatArrayBufferViewsAsHostObjects = mode;
   }
 
   @Override
@@ -163,37 +221,44 @@ public class Serializer extends PrimitiveValueSerializer {
   private void writeJSRegExp(JSRegExp value) {
     writeTag(SerializationTag.REGEXP);
     writeString(value.getSource());
-    writeVarInt(value.getFlags());
+    writeVarIntOrLong(value.getFlags());
   }
 
   private void writeJSArrayBuffer(JSArrayBuffer value) {
-    Integer id = transferMap.get(value);
+    if (arrayBufferTransferMap == null) {
+      arrayBufferTransferMap = new IdentityHashMap<>();
+    }
+
+    Integer id = arrayBufferTransferMap.get(value);
     if (id == null) {
       ByteBuffer source = value.getBuffer();
       int byteLength = source.capacity();
       writeTag(SerializationTag.ARRAY_BUFFER);
-      writeVarInt(byteLength);
+      writeVarIntOrLong(byteLength);
       ensureFreeSpace(byteLength);
       for (int i = 0; i < byteLength; i++) {
         buffer.put(source.get(i));
       }
     } else {
       writeTag(SerializationTag.ARRAY_BUFFER_TRANSFER);
-      writeVarInt(IntegerPolyfill.toUnsignedLong(id));
+      writeVarIntOrLong(IntegerPolyfill.toUnsignedLong(id));
     }
   }
 
   private void writeJSSharedArrayBuffer(JSSharedArrayBuffer value) {
-    int id = NativeAccess.getSharedArrayBufferId(delegate, value);
+    if (delegate == null) {
+      throw new DataCloneException(value);
+    }
+    int id = delegate.getSharedArrayBufferId(this, value);
     writeTag(SerializationTag.SHARED_ARRAY_BUFFER);
-    writeVarInt(id);
+    writeVarIntOrLong(id);
   }
 
   private void writeJSObject(JSObject value) {
     writeTag(SerializationTag.BEGIN_JS_OBJECT);
     writeJSObjectProperties(value.entries());
     writeTag(SerializationTag.END_JS_OBJECT);
-    writeVarInt(value.size());
+    writeVarIntOrLong(value.size());
   }
 
   private void writeJSObjectProperties (Set<Pair<String, Object>> props) {
@@ -214,7 +279,7 @@ public class Serializer extends PrimitiveValueSerializer {
       writeValue(entry.getValue());
     }
     writeTag(SerializationTag.END_JS_MAP);
-    writeVarInt(2 * count);
+    writeVarIntOrLong(2 * count);
   }
 
   private void writeJSSet(JSSet value) {
@@ -226,14 +291,14 @@ public class Serializer extends PrimitiveValueSerializer {
       writeValue(entries.next());
     }
     writeTag(SerializationTag.END_JS_SET);
-    writeVarInt(count);
+    writeVarIntOrLong(count);
   }
 
   private void writeJSArray(JSAbstractArray value) {
     int length = value.size();
     if (value.isDenseArray()) {
       writeTag(SerializationTag.BEGIN_DENSE_JS_ARRAY);
-      writeVarInt(length);
+      writeVarIntOrLong(length);
       for (int i = 0; i < length; i++) {
         writeValue(value.get(i));
       }
@@ -241,7 +306,7 @@ public class Serializer extends PrimitiveValueSerializer {
       writeTag(SerializationTag.END_DENSE_JS_ARRAY);
     } else if (value.isSparseArray()) {
       writeTag(SerializationTag.BEGIN_SPARSE_JS_ARRAY);
-      writeVarInt(length);
+      writeVarIntOrLong(length);
       for (Pair<Integer, Object> item: ((JSSparseArray) value).items()) {
         writeInt(item.first);
         writeValue(item.second);
@@ -251,12 +316,11 @@ public class Serializer extends PrimitiveValueSerializer {
     } else {
       throw new UnreachableCodeException();
     }
-    writeVarInt(JSObject.size(value));
-    writeVarInt(length);
+    writeVarIntOrLong(JSObject.size(value));
+    writeVarIntOrLong(length);
   }
 
   private void writeJSArrayBufferView(JSDataView<?> value) {
-    // TODO: ?
     if (treatArrayBufferViewsAsHostObjects) {
       writeHostObject(value);
     } else {
@@ -308,8 +372,8 @@ public class Serializer extends PrimitiveValueSerializer {
         }
       }
       writeTag(tag);
-      writeVarInt(value.getByteOffset());
-      writeVarInt(value.getByteLength());
+      writeVarIntOrLong(value.getByteOffset());
+      writeVarIntOrLong(value.getByteLength());
     }
   }
 
@@ -368,11 +432,24 @@ public class Serializer extends PrimitiveValueSerializer {
 
   private void writeHostObject(Object object) {
     writeTag(SerializationTag.HOST_OBJECT);
-    NativeAccess.writeHostObject(delegate, object);
+    if (delegate == null) {
+      throw new DataCloneException(object);
+    }
+    delegate.writeHostObject(this, object);
   }
 
-  public void transferArrayBuffer(int id, Object arrayBuffer) {
+  /**
+   * Marks an {@link JSArrayBuffer} as having its contents transferred out of band.
+   * Pass the corresponding {@link JSArrayBuffer} in the deserializing context to {@link Deserializer#transferArrayBuffer(int, JSArrayBuffer)}.
+   *
+   * @param transferId transfer id
+   * @param arrayBuffer JSArrayBuffer
+   */
+  public void transferArrayBuffer(int transferId, JSArrayBuffer arrayBuffer) {
     ensureNotReleased();
-    transferMap.put(arrayBuffer, id);
+    if (arrayBufferTransferMap == null) {
+      arrayBufferTransferMap = new IdentityHashMap<>();
+    }
+    arrayBufferTransferMap.put(arrayBuffer, transferId);
   }
 }

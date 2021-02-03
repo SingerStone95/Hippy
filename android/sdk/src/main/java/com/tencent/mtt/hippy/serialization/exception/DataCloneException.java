@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.tencent.mtt.hippy.serialization;
+package com.tencent.mtt.hippy.serialization.exception;
 
-public class UnsupportedTagException extends RuntimeException {
-  public UnsupportedTagException(SerializationTag tag) {
-    super("Deserialization of a value tagged " + tag);
+public class DataCloneException extends RuntimeException {
+  public DataCloneException(Object received) {
+    super(String.format("[%s] could not be cloned", received.toString()));
   }
 }
