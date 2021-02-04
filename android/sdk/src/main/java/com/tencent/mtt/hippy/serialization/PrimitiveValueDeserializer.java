@@ -15,7 +15,7 @@
  */
 package com.tencent.mtt.hippy.serialization;
 
-import com.tencent.mtt.hippy.exception.OutOfJavaArrayMaxSizeException;
+import com.tencent.mtt.hippy.serialization.exception.DataCloneOutOfRangeException;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.serialization.memory.string.DirectStringTable;
 import com.tencent.mtt.hippy.serialization.memory.string.StringTable;
@@ -285,7 +285,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   protected String readOneByteString(StringLocation location, Object relatedKey) {
     int charCount = readVarInt();
     if (charCount < 0) {
-      throw new OutOfJavaArrayMaxSizeException(charCount);
+      throw new DataCloneOutOfRangeException(charCount);
     }
     char[] chars = new char[charCount];
     for (int i = 0; i < charCount; i++) {
@@ -306,7 +306,7 @@ public abstract class PrimitiveValueDeserializer extends V8Serialization {
   protected String readString(String encoding, StringLocation location, Object relatedKey) {
     int byteCount = readVarInt();
     if (byteCount < 0) {
-      throw new OutOfJavaArrayMaxSizeException(byteCount);
+      throw new DataCloneOutOfRangeException(byteCount);
     }
     byte[] bytes = new byte[byteCount];
     buffer.get(bytes);

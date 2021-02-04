@@ -15,8 +15,8 @@
  */
 package com.tencent.mtt.hippy.serialization.recommend;
 
-import com.tencent.mtt.hippy.exception.OutOfJavaArrayMaxSizeException;
-import com.tencent.mtt.hippy.exception.OutOfJavaIntegerMaxValueException;
+import com.tencent.mtt.hippy.serialization.exception.DataCloneOutOfRangeException;
+import com.tencent.mtt.hippy.serialization.exception.DataCloneOutOfValueException;
 import com.tencent.mtt.hippy.exception.UnexpectedException;
 import com.tencent.mtt.hippy.exception.UnreachableCodeException;
 import com.tencent.mtt.hippy.runtime.builtins.JSRegExp;
@@ -151,7 +151,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
   protected Object readJSArrayBuffer() {
     int byteLength = readVarInt();
     if (byteLength < 0) {
-      throw new OutOfJavaArrayMaxSizeException(byteLength);
+      throw new DataCloneOutOfRangeException(byteLength);
     }
     JSArrayBuffer arrayBufferObject = JSArrayBuffer.allocateDirect(byteLength);
     ByteBuffer arrayBuffer = arrayBufferObject.getBuffer();
@@ -269,7 +269,7 @@ public class Deserializer extends PrimitiveValueDeserializer {
   protected JSDenseArray readDenseArray() {
     int length = readVarInt();
     if (length < 0) {
-      throw new OutOfJavaArrayMaxSizeException(length);
+      throw new DataCloneOutOfRangeException(length);
     }
     JSDenseArray array = new JSDenseArray(length);
     assignId(array);
@@ -314,11 +314,11 @@ public class Deserializer extends PrimitiveValueDeserializer {
     }
     int offset = readVarInt();
     if (offset < 0) {
-      throw new OutOfJavaIntegerMaxValueException(offset);
+      throw new DataCloneOutOfValueException(offset);
     }
     int byteLength = readVarInt();
     if (byteLength < 0) {
-      throw new OutOfJavaIntegerMaxValueException(byteLength);
+      throw new DataCloneOutOfValueException(byteLength);
     }
     JSDataView.DataViewKind kind;
     switch (readArrayBufferViewTag()) {
