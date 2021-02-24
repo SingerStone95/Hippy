@@ -364,11 +364,10 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     if (getAdapter() == null
       || getAdapter().getCount() == 0) // viewpager的children没有初始化好的时候，直接设置mInitialPageIndex
     {
-      setCurrentItem(item, false);
+      setInitialPageIndex(item);
     } else {
-      if (isSetting()) {
-        setCurrentItem(item, animated);
-      } else {
+      setCurrentItem(item, animated);
+      if (!isSetting()) {
         mPageListener.onPageSelected(item);
       }
     }

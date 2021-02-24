@@ -287,9 +287,9 @@ android {
       enabled false
     }
 
-    tasks.withType(JavaCompile) {
+  /*  tasks.withType(JavaCompile) {
         compileTask -> compileTask.dependsOn buildNdkLibs
-    }
+    }*/
 
     lintOptions {
         abortOnError false
