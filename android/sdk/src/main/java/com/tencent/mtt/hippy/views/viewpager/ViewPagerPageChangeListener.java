@@ -15,17 +15,15 @@
  */
 package com.tencent.mtt.hippy.views.viewpager;
 
+import android.support.v4.view.ViewPager;
 import android.util.Log;
 import android.view.View;
-
 import com.tencent.mtt.hippy.common.HippyMap;
 import com.tencent.mtt.hippy.modules.Promise;
-import com.tencent.mtt.hippy.uimanager.HippyViewEvent;
 import com.tencent.mtt.hippy.views.viewpager.event.HippyPageItemExposureEvent;
 import com.tencent.mtt.hippy.views.viewpager.event.HippyPageScrollEvent;
 import com.tencent.mtt.hippy.views.viewpager.event.HippyPageScrollStateChangedEvent;
 import com.tencent.mtt.hippy.views.viewpager.event.HippyPageSelectedEvent;
-import com.tencent.mtt.supportui.views.viewpager.ViewPager;
 
 /**
  * Created by ceasoncai on 2017/12/18.
@@ -59,20 +57,24 @@ public class ViewPagerPageChangeListener implements ViewPager.OnPageChangeListen
 	@Override
 	public void onPageSelected(int position)
 	{
+	  Log.i("yogachen",mPager.getClass().getName()+" "+"onPageSelected send to hippy mCurrPageIndex="+mCurrPageIndex+" position="+position);
     mCurrPageIndex = position;
 		mPageSelectedEmitter.send(position);
     if (mPager != null) {
       View currView = mPager.getViewFromAdapter(mCurrPageIndex);
-      HippyPageItemExposureEvent eventWillAppear = new HippyPageItemExposureEvent(HippyPageItemExposureEvent.EVENT_PAGER_ITEM_WILL_APPEAR);
+      HippyPageItemExposureEvent eventWillAppear = new HippyPageItemExposureEvent(
+        HippyPageItemExposureEvent.EVENT_PAGER_ITEM_WILL_APPEAR);
       eventWillAppear.send(currView, mCurrPageIndex);
 
       View lastView = mPager.getViewFromAdapter(mLastPageIndex);
-      HippyPageItemExposureEvent eventWillDisAppear = new HippyPageItemExposureEvent(HippyPageItemExposureEvent.EVENT_PAGER_ITEM_WILL_DISAPPEAR);
+      HippyPageItemExposureEvent eventWillDisAppear = new HippyPageItemExposureEvent(
+        HippyPageItemExposureEvent.EVENT_PAGER_ITEM_WILL_DISAPPEAR);
       eventWillDisAppear.send(lastView, mLastPageIndex);
     }
 	}
 
 	private void onScrollStateChangeToIdle() {
+    Log.i("yogachen",mPager.getClass().getName()+" "+"onScrollStateChangeToIdle send to hippy mCurrPageIndex="+mCurrPageIndex+" mLastPageIndex="+mLastPageIndex);
     if (mPager != null && mCurrPageIndex != mLastPageIndex) {
       Promise promise = mPager.getCallBackPromise();
       if (promise != null) {
@@ -84,11 +86,13 @@ public class ViewPagerPageChangeListener implements ViewPager.OnPageChangeListen
       }
 
       View currView = mPager.getViewFromAdapter(mCurrPageIndex);
-      HippyPageItemExposureEvent eventWillAppear = new HippyPageItemExposureEvent(HippyPageItemExposureEvent.EVENT_PAGER_ITEM_DID_APPEAR);
+      HippyPageItemExposureEvent eventWillAppear = new HippyPageItemExposureEvent(
+        HippyPageItemExposureEvent.EVENT_PAGER_ITEM_DID_APPEAR);
       eventWillAppear.send(currView, mCurrPageIndex);
 
       View lastView = mPager.getViewFromAdapter(mLastPageIndex);
-      HippyPageItemExposureEvent eventWillDisAppear = new HippyPageItemExposureEvent(HippyPageItemExposureEvent.EVENT_PAGER_ITEM_DID_DISAPPEAR);
+      HippyPageItemExposureEvent eventWillDisAppear = new HippyPageItemExposureEvent(
+        HippyPageItemExposureEvent.EVENT_PAGER_ITEM_DID_DISAPPEAR);
       eventWillDisAppear.send(lastView, mLastPageIndex);
 
       mLastPageIndex = mCurrPageIndex;
@@ -96,8 +100,9 @@ public class ViewPagerPageChangeListener implements ViewPager.OnPageChangeListen
   }
 
 	@Override
-	public void onPageScrollStateChanged(int oldState, int newState)
+	public void onPageScrollStateChanged(int newState)
 	{
+    Log.i("yogachen",mPager.getClass().getName()+" "+"onPageScrollStateChanged send to hippy newState="+newState);
 		String pageScrollState;
 		switch (newState)
 		{

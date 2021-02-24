@@ -15,19 +15,22 @@
  */
 package com.tencent.mtt.hippy.views.viewpager;
 
+import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
+import android.support.v4.view.ViewPager;
+import android.text.TextUtils;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.View;
 import com.tencent.mtt.hippy.HippyInstanceContext;
 import com.tencent.mtt.hippy.modules.Promise;
 import com.tencent.mtt.hippy.uimanager.HippyViewBase;
 import com.tencent.mtt.hippy.uimanager.NativeGestureDispatcher;
 import com.tencent.mtt.hippy.utils.LogUtils;
-import com.tencent.mtt.supportui.views.viewpager.ViewPager;
-
-import android.content.Context;
-import android.os.Handler;
-import android.os.Looper;
-import android.text.TextUtils;
-import android.view.MotionEvent;
-import android.view.View;
+import com.tencent.mtt.hippy.views.viewpager.transform.VerticalPageTransformer;
+import com.tencent.mtt.supportui.views.ScrollChecker;
+import java.lang.reflect.Field;
 
 
 public class HippyViewPager extends ViewPager implements HippyViewBase
@@ -46,29 +49,118 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 															};
 
 
-	private NativeGestureDispatcher		mGestureDispatcher;
+	private NativeGestureDispatcher mGestureDispatcher;
 	private boolean						mScrollEnabled		= true;
 	private boolean						mFirstUpdateChild	= true;
 	private boolean 					mReNotifyOnAttach = false;
-	private ViewPagerPageChangeListener	mPageListener;
+	private ViewPagerPageChangeListener mPageListener;
+	//mInnerPagerListener会在设置的时候回调一次onPageSelect
+	private ViewPager.OnPageChangeListener mInnerPagerListener;
 	private String								mOverflow;
 	private Handler						mHandler			= new Handler(Looper.getMainLooper());
-  private Promise           mCallBackPromise;
+  private Promise mCallBackPromise;
+  private PageSelectedListener mSelectedListener;
+  private boolean mReLayoutOnAttachToWindow = true;
+  private boolean mCallPageChangedOnFirstLayout = false;
+  private boolean mIsCallPageChangedOnFirstLayout = false;
+  private int mOldState = SCROLL_STATE_IDLE;
+  private boolean mIsVertical = false;
 
-	private void init(Context context) {
-    setCallPageChangedOnFirstLayout(true);
-    setEnableReLayoutOnAttachToWindow(false);
 
-    mPageListener = new ViewPagerPageChangeListener(this);
-    setOnPageChangeListener(mPageListener);
-    setAdapter(createAdapter(context));
-    setLeftDragOutSizeEnabled(false);
-    setRightDragOutSizeEnabled(false);
+
+  public interface PageSelectedListener {
+
+    void onPageSelected(boolean programmed, int newIndex);
   }
 
+  public void setPageSelectedListener(PageSelectedListener listener) {
+    mSelectedListener = listener;
+  }
+
+  private void init(Context context) {
+    Log.d("yogachen", "current page=" + this.getClass().getName());
+    setCallPageChangedOnFirstLayout(true);
+    setEnableReLayoutOnAttachToWindow(false);
+    mPageListener = new ViewPagerPageChangeListener(this);
+    addOnPageChangeListener(mPageListener);
+    setAdapter(createAdapter(context));
+    handleCallPageChangeFirstLayout();
+    initViewPager();
+  }
+
+  private void handleCallPageChangeFirstLayout() {
+    mHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        if (mPageListener != null && mCallPageChangedOnFirstLayout) {
+          mPageListener.onPageScrollStateChanged(ViewPager.SCROLL_STATE_IDLE);
+        }
+      }
+    });
+  }
+
+  public int getCurrentPage() {
+    return getCurrentItem();
+  }
+
+  /**
+   * 兼容方法 ，尽量不要调用
+   * @param listener
+   */
+  @Override
+  public void setOnPageChangeListener(OnPageChangeListener listener) {
+    removeOnPageChangeListener(listener);
+    addOnPageChangeListener(listener);
+  }
+
+
+  protected void initViewPager() {
+    //内部持有一个
+    addOnPageChangeListener(new OnPageChangeListener() {
+      @Override
+      public void onPageScrolled(int i, float v, int i1) {
+        if (mInnerPagerListener != null) {
+          mInnerPagerListener.onPageScrolled(i, v, i1);
+        }
+      }
+
+      @Override
+      public void onPageSelected(int i) {
+        if (mInnerPagerListener != null) {
+          mInnerPagerListener.onPageSelected(i);
+        }
+        Log.i("yogachen",
+          HippyViewPager.this.getClass().getName() + " " + "system call onPageSelected=" + i);
+      }
+
+      @Override
+      public void onPageScrollStateChanged(int i) {
+        if (mInnerPagerListener != null) {
+          mInnerPagerListener.onPageScrollStateChanged(i);
+        }
+        notifyScrollStateChanged(mOldState, i);
+        mOldState = i;
+      }
+    });
+    if (mIsVertical) {
+      setPageTransformer(true, new VerticalPageTransformer());
+      // The easiest way to get rid of the overscroll drawing that happens on the left and right
+      setOverScrollMode(OVER_SCROLL_NEVER);
+    }
+  }
+  public int getPageCount() {
+    return getAdapter() == null ? 0 : getAdapter().getCount();
+  }
+  public Object getCurrentItemView() {
+    if (getAdapter() != null) {
+      return getAdapter().getCurrentItemObj();
+    }
+    return null;
+  }
   public HippyViewPager(Context context, boolean isVertical)
   {
-    super(context, isVertical);
+    super(context);
+    mIsVertical = isVertical;
     init(context);
   }
 
@@ -91,13 +183,20 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 		return new HippyViewPagerAdapter((HippyInstanceContext) context, this);
 	}
 
-	public void setInitialPageIndex(int index)
-	{
-		getAdapter().setInitPageIndex(index);
-	}
+  public void setInitialPageIndex(final int index) {
+    Log.i("yogachen",
+      HippyViewPager.this.getClass().getName() + " " + "setInitialPageIndex=" + index);
+    setCurrentItem(index);
+    if (!mIsCallPageChangedOnFirstLayout) {
+      mIsCallPageChangedOnFirstLayout = true;
+      setDefaultItem(index);
+      if (mPageListener != null) {
+        mPageListener.onPageSelected(index);
+      }
+    }
+  }
 
-
-	public void setChildCountAndUpdate(final int childCount)
+  public void setChildCountAndUpdate(final int childCount)
 	{
 		LogUtils.d(TAG, "doUpdateInternal: " + hashCode() + ", childCount=" + childCount);
 		if (mFirstUpdateChild)
@@ -162,7 +261,11 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 		{
 			return false;
 		}
-
+		if (mIsVertical) {
+      boolean intercepted = super.onInterceptTouchEvent(swapXY(ev));
+      swapXY(ev); // return touch coordinates to original reference frame for any child views
+      return intercepted;
+    }
 		return super.onInterceptTouchEvent(ev);
 	}
 
@@ -173,16 +276,29 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 		{
 			return false;
 		}
-
+    if (mIsVertical) {
+      return super.onTouchEvent(swapXY(ev));
+    }
 		return super.onTouchEvent(ev);
 	}
 
-	@Override
-	protected void onAttachedToWindow()
-	{
-		super.onAttachedToWindow();
+  @Override
+  public void setCurrentItem(int item, boolean smoothScroll) {
+    super.setCurrentItem(item, smoothScroll);
+    Log.i("yogachen",
+      HippyViewPager.this.getClass().getName()+" setCurrentItem item="+item+" smoothScroll="+smoothScroll);
+  }
+
+  @Override
+  protected void onAttachedToWindow() {
+    super.onAttachedToWindow();
+    if (!mReLayoutOnAttachToWindow) {
+      setFirstLayout(false);
+    }
+/*
 		LogUtils.d(TAG, "onAttachedToWindow: " + hashCode() + ", childCount=" + getChildCount() + ", repopulate=" + mNeedRepopulate
 				+ ", renotifyOnAttach=" + mReNotifyOnAttach);
+*/
 
 		/*
 		 * hippy 在setChildCountAndUpdate打开，执行了
@@ -207,13 +323,13 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 	protected void onDetachedFromWindow()
 	{
 		super.onDetachedFromWindow();
-		LogUtils.d(TAG, "onDetachedFromWindow: " + hashCode() + ", childCount=" + getChildCount() + ", repopulate=" + mNeedRepopulate
-				+ ", renotifyOnAttach=" + mReNotifyOnAttach);
+	/*	LogUtils.d(TAG, "onDetachedFromWindow: " + hashCode() + ", childCount=" + getChildCount() + ", repopulate=" + mNeedRepopulate
+				+ ", renotifyOnAttach=" + mReNotifyOnAttach);*/
 	}
 
 	public void switchToPage(int item, boolean animated)
 	{
-		LogUtils.d(TAG, "switchToPage: " + hashCode() + ", item=" + item + ", animated=" + animated);
+		/*LogUtils.d(TAG, "switchToPage: " + hashCode() + ", item=" + item + ", animated=" + animated);
 		if (getAdapter().getCount() == 0) // viewpager的children没有初始化好的时候，直接设置mInitialPageIndex
 		{
 			//			mInitialPageIndex = item;
@@ -244,8 +360,23 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 			{
 				mPageListener.onPageSelected(item);
 			}
-		}
+		}*/
+    if (getAdapter() == null
+      || getAdapter().getCount() == 0) // viewpager的children没有初始化好的时候，直接设置mInitialPageIndex
+    {
+      setCurrentItem(item, false);
+    } else {
+      if (isSetting()) {
+        setCurrentItem(item, animated);
+      } else {
+        mPageListener.onPageSelected(item);
+      }
+    }
 	}
+
+  private boolean isSetting() {
+    return mOldState == SCROLL_STATE_SETTLING;
+  }
 
 	public void setScrollEnabled(boolean scrollEnabled)
 	{
@@ -288,4 +419,101 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 		}
 		invalidate();
 	}
+  public void onOverScrollSuccess() {
+
+  }
+
+  protected void notifyScrollStateChanged(int oldState, int newState) {
+
+  }
+
+  private void setEnableReLayoutOnAttachToWindow(boolean enable) {
+    mReLayoutOnAttachToWindow = enable;
+  }
+
+  private void setCallPageChangedOnFirstLayout(boolean enable) {
+    mCallPageChangedOnFirstLayout = enable;
+  }
+
+  private void setFirstLayoutParameter(boolean isFirstLayout) {
+    setFirstLayout(isFirstLayout);
+  }
+
+
+  public void onTabPressed(int id) {
+    if (mSelectedListener != null) {
+      mSelectedListener.onPageSelected(true, id);
+    }
+  }
+
+
+
+
+  public boolean onOverScroll(int deltaX, int deltaY, int scrollX, int scrollY, int scrollRangeX,
+    int scrollRangeY, int maxOverScrollX,
+    int maxOverScrollY, boolean isTouchEvent) {
+    if (((scrollX == 0 && deltaX < 0) || (scrollX == scrollRangeX && deltaX > 0))) {
+      onOverScrollSuccess();
+    }
+    return true;
+
+  }
+
+  @Override
+  protected boolean canScroll(View v, boolean checkV, int dx, int x, int y) {
+    return ScrollChecker.canScroll(v, checkV, mIsVertical, dx, x, y);
+  }
+
+  private MotionEvent swapXY(MotionEvent ev) {
+    float width = getWidth();
+    float height = getHeight();
+
+    float newX = (ev.getY() / height) * width;
+    float newY = (ev.getX() / width) * height;
+
+    ev.setLocation(newX, newY);
+
+    return ev;
+  }
+
+  public void setInternalPageChangeListenerEx(ViewPager.OnPageChangeListener listener) {
+    mInnerPagerListener = listener;
+    mHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        mInnerPagerListener.onPageSelected(getCurrentPage());
+      }
+    });
+  }
+
+  /**
+   * hook 方法，不建议调用，这里只是为了兼容
+   * @param isFirstLayout
+   */
+  private void setFirstLayout(boolean isFirstLayout) {
+    try {
+      Field field = ViewPager.class.getDeclaredField("mFirstLayout");
+      field.setAccessible(true);
+      field.set(this, isFirstLayout);
+
+    } catch (NoSuchFieldException e) {
+      e.printStackTrace();
+    } catch (IllegalAccessException e) {
+      e.printStackTrace();
+    }
+  }
+
+ /**
+   * 也是Hack方法，设置初始化index
+   * @param position
+   */
+  private void setDefaultItem(int position) {
+    try {
+      Field field = ViewPager.class.getDeclaredField("mCurItem");
+      field.setAccessible(true);
+      field.setInt(this, position);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
+  }
 }

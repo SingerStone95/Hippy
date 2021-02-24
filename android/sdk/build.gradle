@@ -1,5 +1,5 @@
 apply plugin: 'com.android.library'
-apply plugin: 'com.novoda.bintray-release'
+//apply plugin: 'com.novoda.bintray-release'
 
 ext {
     def flag = System.getenv('CI')
@@ -299,6 +299,7 @@ android {
 
 dependencies {
   api fileTree(dir: 'libs', include: ['*.jar'])
+  api 'com.android.support:support-v4:26.1.0'
   compileOnly 'com.tencent.mtt:support-ui:2.3.2'
 }
 
@@ -495,20 +496,20 @@ def copyAarToBin(variant) {
 Properties properties = new Properties()
 InputStream inputStream = project.rootProject.file('local.properties').newDataInputStream()
 properties.load( inputStream )
-
-def user = properties.getProperty('bintrayUser')
-def key = properties.getProperty('bintrayKey')
-println("bintrayUpload: bintrayUser=" + user + ", bintrayKey=" + key)
-publish {
-  bintrayUser = user
-  bintrayKey = key
-  userOrg = 'hippy'
-  repoName = 'Hippy'
-  groupId = 'com.tencent.hippy'
-  artifactId = 'hippy-release'
-  publishVersion = '2.0.3'
-  dryRun = false
-  desc = 'Hippy library for Android'
-  website = 'https://github.com/Tencent/Hippy'
-}
+//
+//def user = properties.getProperty('bintrayUser')
+//def key = properties.getProperty('bintrayKey')
+//println("bintrayUpload: bintrayUser=" + user + ", bintrayKey=" + key)
+//publish {
+//  bintrayUser = user
+//  bintrayKey = key
+//  userOrg = 'hippy'
+//  repoName = 'Hippy'
+//  groupId = 'com.tencent.hippy'
+//  artifactId = 'hippy-release'
+//  publishVersion = '2.0.3'
+//  dryRun = false
+//  desc = 'Hippy library for Android'
+//  website = 'https://github.com/Tencent/Hippy'
+//}
 

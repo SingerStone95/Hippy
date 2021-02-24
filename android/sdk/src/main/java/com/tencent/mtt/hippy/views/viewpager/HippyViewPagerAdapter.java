@@ -15,12 +15,12 @@
  */
 package com.tencent.mtt.hippy.views.viewpager;
 
+import android.support.annotation.NonNull;
+import android.support.v4.view.PagerAdapter;
+import android.support.v4.view.ViewPager;
 import android.view.View;
 import android.view.ViewGroup;
 import com.tencent.mtt.hippy.HippyInstanceContext;
-import com.tencent.mtt.supportui.views.viewpager.ViewPager;
-import com.tencent.mtt.supportui.views.viewpager.ViewPagerAdapter;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,7 +28,7 @@ import java.util.List;
  * Created by ceasoncai on 2017/12/15.
  */
 
-public class HippyViewPagerAdapter extends ViewPagerAdapter
+public class HippyViewPagerAdapter extends PagerAdapter
 {
 	private static final String		TAG				= "HippyViewPagerAdapter";
 
@@ -37,10 +37,15 @@ public class HippyViewPagerAdapter extends ViewPagerAdapter
 	private int						mChildSize		= 0;
 
 	private int						mInitPageIndex	= 0;
-	private HippyInstanceContext	mEngineContext;
+	private HippyInstanceContext mEngineContext;
 
-	protected HippyViewPager		mViewPager;
+	protected HippyViewPager mViewPager;
 
+  public Object getCurrentItemObj() {
+    return mCurrentItemObj;
+  }
+
+  private Object mCurrentItemObj = null;
 
 	public HippyViewPagerAdapter(HippyInstanceContext context, HippyViewPager viewPager)
 	{
@@ -53,10 +58,6 @@ public class HippyViewPagerAdapter extends ViewPagerAdapter
 		mChildSize = size;
 	}
 
-	public void setInitPageIndex(int index)
-	{
-		mInitPageIndex = index;
-	}
 
 	protected void addView(HippyViewPagerItem view, int position)
 	{
@@ -158,7 +159,7 @@ public class HippyViewPagerAdapter extends ViewPagerAdapter
 		return viewWrapper;
 	}
 
-	@Override
+
 	public int getInitialItemIndex()
 	{
 		return mInitPageIndex;
@@ -179,7 +180,15 @@ public class HippyViewPagerAdapter extends ViewPagerAdapter
 
 	}
 
-	@Override
+
+  @Override
+  public void setPrimaryItem(@NonNull ViewGroup container, int position,
+    @NonNull Object object) {
+    super.setPrimaryItem(container, position, object);
+    mCurrentItemObj = object;
+  }
+
+  @Override
 	public boolean isViewFromObject(View view, Object object)
 	{
 		return view == object;
