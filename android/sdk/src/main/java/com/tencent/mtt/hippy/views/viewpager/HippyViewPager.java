@@ -54,8 +54,6 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 	private boolean						mFirstUpdateChild	= true;
 	private boolean 					mReNotifyOnAttach = false;
 	private ViewPagerPageChangeListener mPageListener;
-	//mInnerPagerListener会在设置的时候回调一次onPageSelect
-	private ViewPager.OnPageChangeListener mInnerPagerListener;
 	private String								mOverflow;
 	private Handler						mHandler			= new Handler(Looper.getMainLooper());
   private Promise mCallBackPromise;
@@ -103,24 +101,6 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     return getCurrentItem();
   }
 
-  /**
-   * 兼容方法 ，尽量不要调用
-   * @param listener
-   */
-  @Override
-  public void setOnPageChangeListener(OnPageChangeListener listener) {
-    super.setOnPageChangeListener(listener);
-  }
-
-  public void setInternalPageChangeListener(ViewPager.OnPageChangeListener listener) {
-    mInnerPagerListener = listener;
-  /*  mHandler.post(new Runnable() {
-      @Override
-      public void run() {
-        mInnerPagerListener.onPageSelected(getCurrentPage());
-      }
-    });*/
-  }
 
 
   protected void initViewPager() {
@@ -128,25 +108,14 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     addOnPageChangeListener(new OnPageChangeListener() {
       @Override
       public void onPageScrolled(int i, float v, int i1) {
-        if (mInnerPagerListener != null) {
-          mInnerPagerListener.onPageScrolled(i, v, i1);
-        }
       }
 
       @Override
       public void onPageSelected(int i) {
-        if (mInnerPagerListener != null) {
-          mInnerPagerListener.onPageSelected(i);
-        }
-        Log.i("yogachen",
-          HippyViewPager.this.getClass().getName() + " " + "system call onPageSelected=" + i);
       }
 
       @Override
       public void onPageScrollStateChanged(int i) {
-        if (mInnerPagerListener != null) {
-          mInnerPagerListener.onPageScrollStateChanged(i);
-        }
         notifyScrollStateChanged(mOldState, i);
         mOldState = i;
       }
@@ -198,7 +167,7 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     setCurrentItem(index);
     setDefaultItem(index);
     //对齐老的ViewPager，补一个回调
-    callPageSelected(index);
+    //callPageSelected(index);
   }
 
   private void callPageSelected(int index) {
