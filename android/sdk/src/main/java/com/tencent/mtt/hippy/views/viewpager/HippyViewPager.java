@@ -109,8 +109,17 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
    */
   @Override
   public void setOnPageChangeListener(OnPageChangeListener listener) {
-    removeOnPageChangeListener(listener);
-    addOnPageChangeListener(listener);
+    super.setOnPageChangeListener(listener);
+  }
+
+  public void setInternalPageChangeListener(ViewPager.OnPageChangeListener listener) {
+    mInnerPagerListener = listener;
+  /*  mHandler.post(new Runnable() {
+      @Override
+      public void run() {
+        mInnerPagerListener.onPageSelected(getCurrentPage());
+      }
+    });*/
   }
 
 
@@ -187,9 +196,14 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     Log.i("yogachen",
       HippyViewPager.this.getClass().getName() + " " + "setInitialPageIndex=" + index);
     setCurrentItem(index);
+    setDefaultItem(index);
+    //对齐老的ViewPager，补一个回调
+    callPageSelected(index);
+  }
+
+  private void callPageSelected(int index) {
     if (!mIsCallPageChangedOnFirstLayout) {
       mIsCallPageChangedOnFirstLayout = true;
-      setDefaultItem(index);
       if (mPageListener != null) {
         mPageListener.onPageSelected(index);
       }
@@ -475,15 +489,6 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     return ev;
   }
 
-  public void setInternalPageChangeListenerEx(ViewPager.OnPageChangeListener listener) {
-    mInnerPagerListener = listener;
-    mHandler.post(new Runnable() {
-      @Override
-      public void run() {
-        mInnerPagerListener.onPageSelected(getCurrentPage());
-      }
-    });
-  }
 
   /**
    * hook 方法，不建议调用，这里只是为了兼容
@@ -494,7 +499,6 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
       Field field = ViewPager.class.getDeclaredField("mFirstLayout");
       field.setAccessible(true);
       field.set(this, isFirstLayout);
-
     } catch (NoSuchFieldException e) {
       e.printStackTrace();
     } catch (IllegalAccessException e) {
