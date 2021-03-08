@@ -16,13 +16,16 @@
 package com.tencent.mtt.hippy.views.viewpager;
 
 import android.content.Context;
+import android.os.Build.VERSION_CODES;
 import android.os.Handler;
 import android.os.Looper;
+import android.support.annotation.RequiresApi;
 import android.support.v4.view.ViewPager;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewTreeObserver.OnGlobalLayoutListener;
 import com.tencent.mtt.hippy.HippyInstanceContext;
 import com.tencent.mtt.hippy.modules.Promise;
 import com.tencent.mtt.hippy.uimanager.HippyViewBase;
@@ -108,11 +111,25 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
         mOldState = i;
       }
     });
+    handleCallPageChangeFirstLayout();
     if (mIsVertical) {
       setPageTransformer(true, new VerticalPageTransformer());
       // The easiest way to get rid of the overscroll drawing that happens on the left and right
       setOverScrollMode(OVER_SCROLL_NEVER);
     }
+  }
+
+  private void handleCallPageChangeFirstLayout() {
+    getViewTreeObserver().addOnGlobalLayoutListener(new OnGlobalLayoutListener() {
+      @RequiresApi(api = VERSION_CODES.JELLY_BEAN)
+      @Override
+      public void onGlobalLayout() {
+        getViewTreeObserver().removeOnGlobalLayoutListener(this);
+        if (mPageListener != null && mCallPageChangedOnFirstLayout) {
+          mPageListener.onPageScrollStateChanged(ViewPager.SCROLL_STATE_IDLE);
+        }
+      }
+    });
   }
   public int getPageCount() {
     return getAdapter() == null ? 0 : getAdapter().getCount();
