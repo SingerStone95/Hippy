@@ -82,19 +82,7 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
     mPageListener = new ViewPagerPageChangeListener(this);
     addOnPageChangeListener(mPageListener);
     setAdapter(createAdapter(context));
-    handleCallPageChangeFirstLayout();
     initViewPager();
-  }
-
-  private void handleCallPageChangeFirstLayout() {
-    mHandler.post(new Runnable() {
-      @Override
-      public void run() {
-        if (mPageListener != null && mCallPageChangedOnFirstLayout) {
-          mPageListener.onPageScrollStateChanged(ViewPager.SCROLL_STATE_IDLE);
-        }
-      }
-    });
   }
 
   public int getCurrentPage() {
@@ -460,7 +448,7 @@ public class HippyViewPager extends ViewPager implements HippyViewBase
 
 
   /**
-   * hook 方法，不建议调用，这里只是为了兼容
+   * hook 方法，不建议调用，这里只是为了兼容,目的是为了触发一次firstLayout恢复状态
    * @param isFirstLayout
    */
   private void setFirstLayout(boolean isFirstLayout) {
